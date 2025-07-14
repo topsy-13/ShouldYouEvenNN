@@ -49,7 +49,7 @@ class Generation():
             self.generation[i]["val_acc"] = val_acc
 
 
-    def get_worst_individuals(self, 
+    def get_worst_individuals(self, baseline_metric:float,
                               percentile_drop=15):
     
         n_worst_individuals = max(1, int(self.n_individuals * percentile_drop / 100))  # Ensure at least 1
