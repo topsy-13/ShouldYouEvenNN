@@ -6,12 +6,13 @@ import math
 import random
 
 from architecture_generator import DynamicNN
+
 # region Search Space
 class SearchSpace():
     
     def __init__(self, input_size, output_size, 
-                 min_layers=2, max_layers=7, 
-                 min_neurons=13, max_neurons=512,
+                 min_layers=2, max_layers=50, 
+                 min_neurons=3, max_neurons=1313,
                  activation_fns=[nn.ReLU, nn.LeakyReLU, nn.Sigmoid, nn.Tanh, nn.ELU, nn.GELU],
                  dropout_rates=[0, 0.1, 0.2, 0.3, 0.4, 0.5],
                  min_learning_rate=0.0001, max_learning_rate=0.1,
@@ -70,7 +71,7 @@ class SearchSpace():
         
         # Sample other parameters
         batch_size = random.choice(self.batch_sizes)
-        use_layer_norm = random.choice(self.layer_norm_options)
+        # use_layer_norm = random.choice(self.layer_norm_options)
         use_skip_connections = random.choice(self.skip_connection_options)
         initializer = random.choice(self.initializers)
         lr_scheduler = random.choice(self.lr_schedulers)
