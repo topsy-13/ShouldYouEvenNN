@@ -34,7 +34,6 @@ ShouldYouEvenNN/
 ├── src/                   # All core logic: training, forecasting, discarding, etc.
 ├── notebooks/             # Visualizations and analysis
 ├── experiments/           # Datasets, config files, result logs
-├── data/                  # Optional placeholder for datasets
 ├── docs/                  # Diagrams, architecture, write-ups
 ├── main.py                # Entry point to run the EBE-NAS loop
 ├── config.yaml            # Customizable settings
