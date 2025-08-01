@@ -6,12 +6,14 @@ import gc
 import data_preprocessing as dp
 from instance_sampling import resolve_instance_budget, sample_data, create_dataloaders
 
-from baseline_models import get_models_and_baseline_metric
+# from baseline_models import get_models_and_baseline_metric
 from forecaster import forecast_accuracy
 
 # region Generations
 class Generation():
-    def __init__(self, search_space, n_individuals, starting_instances=100):
+    def __init__(self, search_space, n_individuals, starting_instances=100, 
+                 task_type='classification'):
+        self.task_type = task_type
         self.search_space = search_space
         self.n_individuals = n_individuals
         self.generation = self.build_generation()
@@ -21,7 +23,7 @@ class Generation():
         generation = {}
         for i in range(self.n_individuals):
             architecture = self.search_space.sample_architecture()
-            model = self.search_space.create_model(architecture)
+            model = self.search_space.create_model(architecture, task_type=self.task_type)
             generation[i] = {
                 "model": model,
                 "architecture": architecture,

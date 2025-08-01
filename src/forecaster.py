@@ -14,6 +14,18 @@ def forecast_accuracy(efforts, accuracies, max_effort=100, model_type='linear', 
     X = np.array(efforts).reshape(-1, 1)
     y = np.array(accuracies)
 
+    try:
+        if (
+            np.isnan(X.astype(float)).any() or 
+            np.isinf(X.astype(float)).any() or 
+            np.isnan(y.astype(float)).any() or 
+            np.isinf(y.astype(float)).any()
+        ):
+            return None
+        
+    except (TypeError, ValueError):
+        return None
+
     if model_type == 'linear':
         model = LinearRegression()
         model.fit(X, y)

@@ -101,7 +101,7 @@ class SearchSpace():
             'scheduler_params': scheduler_params
         }
 
-    def create_model(self, architecture):
+    def create_model(self, architecture, task_type='classification'):
         hidden_layers = architecture["hidden_layers"]
         activation_fn = architecture["activation_fn"]
         dropout_rate = architecture["dropout_rate"]
@@ -128,7 +128,8 @@ class SearchSpace():
             initializer=initializer,
             lr_scheduler=lr_scheduler,
             scheduler_params=scheduler_params,
-            device=self.device
+            device=self.device,
+            task_type=task_type
         ).to(self.device)
         
         return model

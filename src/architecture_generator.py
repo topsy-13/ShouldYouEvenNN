@@ -14,12 +14,14 @@ class DynamicNN(nn.Module):  # MLP
                  use_skip_connections=False,
                  initializer='xavier_uniform', lr_scheduler='none',
                  scheduler_params={},
-                 device=None):
+                 device=None,
+                 task_type='classification'):
         super(DynamicNN, self).__init__()
 
         self.device = device if device is not None else torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.use_skip_connections = use_skip_connections
-        
+        self.task_type = task_type
+
         layers = []
         prev_size = input_size
 
@@ -84,7 +86,10 @@ class DynamicNN(nn.Module):  # MLP
         else:
             self.scheduler = None
 
-        self.criterion = nn.CrossEntropyLoss()
+        if self.task_type == 'classification':
+           self.criterion = nn.CrossEntropyLoss()
+        elif self.task_type == 'regression':
+            self.criterion = nn.MSELoss()
     
     def _get_optimizer_class(self, optimizer_type):
         """
@@ -175,18 +180,20 @@ class DynamicNN(nn.Module):  # MLP
 
 
     def oe_train(self, train_loader, num_epochs=1):
+        task_type = self.task_type
         self.train()
         for epoch in range(num_epochs):
             total = 0
-            correct = 0
             running_loss = 0.0
-            
+            correct = 0  # Only used for classification
+            train_acc = None
+
             for features, labels in train_loader:
                 features, labels = features.to(self.device), labels.to(self.device)
 
-                # Automatically flatten if it's an image (i.e., has more than 2 dimensions)
-                if features.dim() > 2:  
-                    features = features.view(features.size(0), -1)  # Flatten images
+                # Flatten if input is image-like
+                if features.dim() > 2:
+                    features = features.view(features.size(0), -1)
 
                 self.optimizer.zero_grad()
                 outputs = self(features)
@@ -195,31 +202,42 @@ class DynamicNN(nn.Module):  # MLP
                 self.optimizer.step()
 
                 # Accumulate loss
-                running_loss += loss.item() * features.size(0)
+                batch_size = features.size(0)
+                running_loss += loss.item() * batch_size
+                total += batch_size
 
-                # Compute accuracy
-                with torch.no_grad():
-                    _, predicted = torch.max(outputs, 1)
-                    total += labels.size(0)
-                    correct += (predicted == labels).sum().item()
+                # Accuracy only for classification
+                if task_type == 'classification':
+                    with torch.no_grad():
+                        _, predicted = torch.max(outputs, 1)
+                        correct += (predicted == labels).sum().item()
 
-            # Compute final loss and accuracy for the epoch
+            # Epoch metrics
             train_loss = running_loss / total
-            train_acc = correct / total
+            if task_type == 'classification':
+                train_acc = correct / total
+
+            else:
+                pass
+                # print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {train_loss:.4f}")
+                # return train_loss
             
-        return train_loss, train_acc
+            return train_loss, train_acc
+
     
-    def es_train(self, train_loader, val_loader, es_patience=50, max_epochs=300, verbose=False):
-        best_val_acc = -float('inf')
+    def es_train(self, train_loader, val_loader, es_patience=50, max_epochs=300, 
+                verbose=False, task_type='classification'):
+        best_metric = -float('inf') if task_type == 'classification' else float('inf')
         epochs_without_improvement = 0
         best_model_state = None
 
         best_train_loss = None
-        best_train_acc = None
+        best_train_acc = None  # None for regression
         best_val_loss = None
+        best_val_acc = None    # None for regression
 
         for epoch in range(1, max_epochs + 1):
-            train_loss, train_acc = self.oe_train(train_loader)
+            train_loss, train_acc = self.oe_train(train_loader, task_type=task_type)
 
             self.eval()
             running_loss_val = 0.0
@@ -236,30 +254,44 @@ class DynamicNN(nn.Module):  # MLP
                     outputs = self(features)
                     loss = self.criterion(outputs, labels)
 
-                    running_loss_val += loss.item() * features.size(0)
-                    _, predicted = torch.max(outputs, 1)
-                    total_val += labels.size(0)
-                    correct_val += (predicted == labels).sum().item()
+                    batch_size = features.size(0)
+                    running_loss_val += loss.item() * batch_size
+                    total_val += batch_size
+
+                    if task_type == 'classification':
+                        _, predicted = torch.max(outputs, 1)
+                        correct_val += (predicted == labels).sum().item()
 
             val_loss = running_loss_val / total_val
-            val_acc = correct_val / total_val
-
+            val_acc = (correct_val / total_val) if task_type == 'classification' else None
             self.train()
 
-            if val_acc > best_val_acc:
-                best_val_acc = val_acc
+            # Choose metric for early stopping
+            current_metric = val_acc if task_type == 'classification' else -val_loss
+            improved = current_metric > best_metric
+
+            if improved:
+                best_metric = current_metric
                 best_val_loss = val_loss
                 best_train_loss = train_loss
-                best_train_acc = train_acc
+                best_train_acc = train_acc if task_type == 'classification' else None
+                best_val_acc = val_acc
                 best_model_state = copy.deepcopy(self.state_dict())
                 epochs_without_improvement = 0
-                print('New best acc found:', best_val_acc)
+                if verbose:
+                    if task_type == 'classification':
+                        print(f"New best acc found: {val_acc:.4f}")
+                    else:
+                        print(f"New best loss found: {val_loss:.4f}")
             else:
                 epochs_without_improvement += 1
 
             if verbose:
-                print(f"Epoch {epoch}: Train Loss={train_loss:.4f}, Train Acc={train_acc:.4f}, "
-                    f"Val Loss={val_loss:.4f}, Val Acc={val_acc:.4f}")
+                if task_type == 'classification':
+                    print(f"Epoch {epoch}: Train Loss={train_loss:.4f}, Train Acc={train_acc:.4f}, "
+                        f"Val Loss={val_loss:.4f}, Val Acc={val_acc:.4f}")
+                else:
+                    print(f"Epoch {epoch}: Train Loss={train_loss:.4f}, Val Loss={val_loss:.4f}")
 
             if epochs_without_improvement >= es_patience:
                 if verbose:
@@ -271,36 +303,40 @@ class DynamicNN(nn.Module):  # MLP
 
         return best_train_loss, best_train_acc, best_val_loss, best_val_acc
 
+
     def evaluate(self, val_loader):
-            self.eval()
-            
-            total = 0
-            correct = 0
-            running_loss = 0.0
-            
-            with torch.no_grad():
-                for features, labels in val_loader:
-                    features, labels = features.to(self.device), labels.to(self.device)
+        task_type = self.task_type
+        self.eval()
+        
+        total = 0
+        running_loss = 0.0
+        correct = 0  # Only used for classification
 
-                    # Automatically flatten if it's an image (i.e., has more than 2 dimensions)
-                    if features.dim() > 2:  
-                        features = features.view(features.size(0), -1)
+        with torch.no_grad():
+            for features, labels in val_loader:
+                features, labels = features.to(self.device), labels.to(self.device)
 
-                    outputs = self(features)
-                    loss = self.criterion(outputs, labels)
-                    running_loss += loss.item() * features.size(0)
-                    
+                if features.dim() > 2:
+                    features = features.view(features.size(0), -1)
+
+                outputs = self(features)
+                loss = self.criterion(outputs, labels)
+                batch_size = features.size(0)
+                running_loss += loss.item() * batch_size
+                total += batch_size
+
+                if task_type == 'classification':
                     _, predicted = torch.max(outputs, 1)
-                    total += labels.size(0)
                     correct += (predicted == labels).sum().item()
-            
-            val_loss = running_loss / total
-            val_accuracy = correct / total
-            
-            return val_loss, val_accuracy
+
+        val_loss = running_loss / total
+        val_accuracy = (correct / total) if task_type == 'classification' else None
+
+        return val_loss, val_accuracy
 
 
-def create_model_from_row(row, input_size, output_size):
+
+def create_model_from_row(row, input_size, output_size, task_type='classification'):
 
     # Hidden layers
     hidden_layers = row.get('hidden_layers', [128, 64])
@@ -327,7 +363,7 @@ def create_model_from_row(row, input_size, output_size):
     activation_fn = activation_map.get(activation_name, nn.ReLU)
 
     # Dropout
-    dropout_rate = row.get('dropout_rate', 0.2)
+    dropout_rate = row.get('dropout_rate', 0.0)
 
     # Optimizer and learning rate
     lr = row.get('lr', 0.001)
@@ -362,7 +398,8 @@ def create_model_from_row(row, input_size, output_size):
         initializer=initializer,
         lr_scheduler=lr_scheduler,
         scheduler_params=scheduler_params,
-        device=device
+        device=device,
+        task_type=task_type
     ).to(device)
 
     return model
