@@ -3,7 +3,13 @@ import pandas as pd
 
 
 def get_best_models(X, y, n_models=10, 
-                    max_hpo_iterations=100, timeout=60, scoring_metric='neg_log_loss'):
+                    max_hpo_iterations=100, timeout=60, 
+                    scoring_metric='neg_log_loss'):
+    
+    # Make X and y numpy arrays since they are tensors
+    X = X.to_numpy()
+    y = y.to_numpy()
+
     naml = naiveautoml.NaiveAutoML(timeout_candidate=timeout, max_hpo_iterations=max_hpo_iterations)
     naml.fit(X, y)
     scoreboard = naml.history
