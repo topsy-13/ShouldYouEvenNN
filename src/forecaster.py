@@ -1,26 +1,51 @@
-def fit_curve(curve_points, method='poly', degree=2):
-    """
-    Fit a forecasting model to the early learning curve.
+import numpy as np
+from sklearn.linear_model import LinearRegression
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import PolynomialFeatures
+from scipy.optimize import curve_fit
 
-    Args:
-        curve_points (List[Tuple[int, float]]): [(batch_idx or epoch_idx, val_score), ...]
-        method (str): 'poly', 'exp', 'savgol', etc.
-        degree (int): Polynomial degree (if method == 'poly')
+def sigmoid(x, L, k, x0):
+    return L / (1 + np.exp(-k * (x - x0)))
 
-    Returns:
-        forecast_fn (Callable): A function to predict performance at future epoch
-    """
-    
+def rational_model(x, a, b):
+    return (a * x) / (b + x)
 
-def predict_final_performance(forecast_fn, target_epoch):
-    """
-    Predicts the validation performance at a future epoch.
+def forecast_accuracy(efforts, accuracies, max_effort=100, model_type='linear', degree=2):
+    X = np.array(efforts).reshape(-1, 1)
+    y = np.array(accuracies)
 
-    Args:
-        forecast_fn (Callable): The fitted curve function
-        target_epoch (int): Epoch to predict (e.g., 50)
+    if model_type == 'linear':
+        model = LinearRegression()
+        model.fit(X, y)
+        forecast = model.predict([[max_effort]])[0]
 
-    Returns:
-        float: Predicted validation score at target_epoch
-    """
-        
+    elif model_type == 'polynomial':
+        model = make_pipeline(PolynomialFeatures(degree), LinearRegression())
+        model.fit(X, y)
+        forecast = model.predict([[max_effort]])[0]
+
+    elif model_type == 'sigmoid':
+        p0 = [1.0, 1.0, np.median(efforts)]
+        try:
+            popt, _ = curve_fit(sigmoid, X.flatten(), y, p0=p0, bounds=([0, 0, 0], [1.0, 10, np.inf]))
+            forecast = sigmoid(max_effort, *popt)
+        except RuntimeError:
+            forecast = y[-1]
+
+    elif model_type == 'rational':
+        try:
+            popt, _ = curve_fit(
+                rational_model,
+                X.flatten(),
+                y,
+                bounds=([0.0, 0.01], [1.0, np.inf]),
+                maxfev=10000
+            )
+            forecast = rational_model(max_effort, *popt)
+        except RuntimeError:
+            forecast = y[-1]
+
+    else:
+        raise ValueError(f"Unsupported model_type: {model_type}")
+
+    return float(np.clip(forecast, 0.0, 1.0))
