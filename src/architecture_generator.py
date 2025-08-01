@@ -176,7 +176,6 @@ class DynamicNN(nn.Module):  # MLP
 
     def oe_train(self, train_loader, num_epochs=1):
         self.train()
-        
         for epoch in range(num_epochs):
             total = 0
             correct = 0

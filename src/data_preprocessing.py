@@ -115,22 +115,12 @@ def get_preprocessed_data(dataset_id=334, scaling=True, scaler_type='standard',
     print(f'Training data shape: {X_train.shape}')
     return X_train, y_train, X_val, y_val, X_test, y_test
 
-def create_dataset_and_loader(X, y, batch_size, shuffle=True, instance_budget=None):
+def create_dataset_and_loader(X, y, batch_size, shuffle=True):
     """
     Creates a TensorDataset from X and y tensors and wraps it in a DataLoader.
     """
     # Create the TensorDataset
     dataset = TensorDataset(X, y)
-
-    if instance_budget is not None:
-        if isinstance(instance_budget, float):
-            instance_budget = int(len(dataset) * instance_budget)
-        if instance_budget <= 0:
-            raise ValueError("instance_budget must be > 0.")
-
-        if len(dataset) > instance_budget:
-            indices = random.sample(range(len(dataset)), instance_budget)
-            dataset = torch.utils.data.Subset(dataset, indices)
 
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
     return dataset, loader
