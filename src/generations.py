@@ -65,7 +65,7 @@ class Generation():
             model = self.generation[i]["model"]
             batch_size = self.generation[i]["batch_size"]
             # Sample data based on the instance budget
-            X_sampled, y_sampled = sample_data(X_val, y_val, self.n_instances, mode="absolute")
+            X_sampled, y_sampled = sample_data(X_val, y_val, self.n_instances, mode="absolute", task_type=self.task_type)
             
             # Create a DataLoader with the architecture-specific batch size
             val_loader = create_dataloaders(X=X_sampled, y=y_sampled, batch_size=batch_size)
@@ -191,8 +191,9 @@ class Generation():
         # Sort by validation accuracy in descending order
         df['final_val_acc'] = df['val_acc'].apply(lambda x: x[-1] if isinstance(x, list) else x)
         df['final_val_loss'] = df['val_loss'].apply(lambda x: x[-1] if isinstance(x, list) else x)
-
-        return df.sort_values('final_val_acc', ascending=False).reset_index(drop=True)
+        
+        self.history = df.sort_values('final_val_acc', ascending=False).reset_index(drop=True)
+        return self.history
 
     def run_generation(self,
                        X_train, y_train, X_val, y_val,

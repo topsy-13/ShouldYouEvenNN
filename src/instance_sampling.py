@@ -29,12 +29,28 @@ def resolve_instance_budget(X, budget, mode="absolute", max_cap=None):
 
     return n_instances
 
+from sklearn.model_selection import StratifiedShuffleSplit
 
-def sample_data(X, y, budget, mode="absolute", max_cap=None):
+def sample_data(X, y, budget, mode="absolute", max_cap=None, task_type='classification'):
     n_samples = resolve_instance_budget(X, budget, mode=mode, max_cap=max_cap)
-    indices = np.random.choice(len(X), size=n_samples, replace=False)
+    total_samples = len(X)
 
-    return X[indices], y[indices]
+    if n_samples >= total_samples:
+        # Just return the full dataset
+        return X, y
+
+    if task_type == 'classification':
+        sss = StratifiedShuffleSplit(n_splits=1, train_size=n_samples, random_state=None)
+        train_index, _ = next(sss.split(X, y))
+        selected_indices = train_index
+
+    elif task_type == 'regression':
+        selected_indices = np.random.choice(total_samples, size=n_samples, replace=False)
+
+    else:
+        raise ValueError(f"Unsupported task_type: {task_type}")
+
+    return X[selected_indices], y[selected_indices]
 
 
 def create_dataloaders(X, y, 
