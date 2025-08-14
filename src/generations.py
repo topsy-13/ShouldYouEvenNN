@@ -6,6 +6,8 @@ import gc
 import data_preprocessing as dp
 from instance_sampling import resolve_instance_budget, sample_data, create_dataloaders
 
+import time
+
 # from baseline_models import get_models_and_baseline_metric
 from forecaster import forecast_accuracy
 
@@ -18,6 +20,7 @@ class Generation():
         self.n_individuals = n_individuals
         self.generation = self.build_generation()
         self.n_instances = starting_instances
+        
 
     def build_generation(self):
         generation = {}
@@ -35,7 +38,10 @@ class Generation():
                 "train_acc": [],
                 'val_loss': [],
                 "val_acc": [],
-                "forecasted_val_acc": []
+                "forecasted_val_acc": [],
+                "score": 0.0,
+                "forecast_gain": 0.0,
+                'higher_than_baseline': False
             }
         return generation
     
@@ -44,18 +50,20 @@ class Generation():
             model = self.generation[i]["model"]
             batch_size = self.generation[i]["batch_size"]
             dataset_fraction = self.n_instances / len(X_train)
-            num_epochs = len(self.generation[i]['train_loss'])
-
-            self.effort = dataset_fraction * num_epochs
+            
             # Sample data based on the instance budget
             X_sampled, y_sampled = sample_data(X_train, y_train, self.n_instances, mode="absolute")
-            
+
+            # Cap it to the max instances
+            self.n_instances = min(self.n_instances, len(X_train))
             # Create a DataLoader with the architecture-specific batch size
             train_loader = create_dataloaders(X=X_sampled, y=y_sampled, batch_size=batch_size)
 
             train_loss, train_acc = model.oe_train(train_loader)
             self.generation[i]["train_loss"].append(train_loss)  
             self.generation[i]["train_acc"].append(train_acc)
+            num_epochs = len(self.generation[i]['train_loss'])
+            self.effort = dataset_fraction * num_epochs
             self.generation[i]["n_instances"].append(self.n_instances)
             self.generation[i]["effort"].append(self.effort)
     
@@ -80,13 +88,12 @@ class Generation():
     
         n_worst_individuals = max(1, int(self.n_individuals * percentile_drop / 100))  # Ensure at least 1
 
-        # Sort individuals by validation loss in descending order (higher loss is worse)
-        sorted_generation = sorted(self.generation.items(), key=lambda x: x[1]["val_loss"], reverse=True) #? Should the criterion be val_loss or val_acc?
+        # Sort individuals by score ranking (higher score is better)
+        sorted_generation = sorted(self.generation.items(), key=lambda x: x[1]["score"], reverse=False)
 
         # Extract the keys of the worst individuals
         self.worst_individuals = [key for key, _ in sorted_generation[:n_worst_individuals]]
 
-        
 
     def drop_worst_individuals(self):
         # Clean up GPU memory before removing references
@@ -107,8 +114,8 @@ class Generation():
         self.n_individuals = len(self.generation)  # Update the count
 
     def drop_all_except_best(self):
-        # Sort individuals by validation loss in ascending order (lower loss is better)
-        sorted_generation = sorted(self.generation.items(), key=lambda x: x[1]["val_loss"])
+        # Sort individuals by score ranking (higher score is better)
+        sorted_generation = sorted(self.generation.items(), key=lambda x: x[1]["score"], reverse=False)
         
         # Keep only the best individual
         best_individual = sorted_generation[0][0]
@@ -139,12 +146,44 @@ class Generation():
         for i in range(self.n_individuals):
             efforts = self.generation[i]["effort"]
             val_accs = self.generation[i]["val_acc"]
-            if len(efforts) > epoch_threshold and len(val_accs) > epoch_threshold:
+            if len(efforts) >= epoch_threshold and len(val_accs) >= epoch_threshold:
                 forecasted_accuracy = forecast_accuracy(efforts, val_accs, model_type='rational')
                 self.generation[i]["forecasted_val_acc"] = forecasted_accuracy
             else: 
                 pass  # Not enough data to forecast
     
+    def score_individuals(self, baseline_metric):
+        self.check_higher_than_baseline(baseline_metric)
+
+        for i in range(self.n_individuals):
+            # TODO: use the baseline metric to drop models
+            last_val_acc = self.generation[i]['val_acc'][-1]
+            # get the last forecasted accuracy if empty then 0
+
+            if not self.generation[i]["forecasted_val_acc"]:
+                last_fcst_acc = 0.0
+            else:
+                last_fcst_acc = self.generation[i]["forecasted_val_acc"]
+
+            # print('Last valacc:', last_val_acc)
+            # print('Forecast valacc' ,self.generation[i]["forecasted_val_acc"])
+            # Score is a combination of current accuracy and forecasted 
+            score = 0.7 * last_val_acc + 0.3 * last_fcst_acc
+            # * score models by how much higher their forecast is compared to the baseline:
+            self.generation[i]['forecast_gain'] = last_fcst_acc - baseline_metric
+
+            self.generation[i]['score'] = 0.5 * last_val_acc + 0.5 * self.generation[i]['forecast_gain']
+            
+            self.generation[i]["score"] = score
+
+    def check_higher_than_baseline(self, baseline_metric):
+        for i in range(self.n_individuals):
+            if not self.generation[i]["forecasted_val_acc"]:
+                last_fcst_acc = 0.0
+            else:
+                last_fcst_acc = self.generation[i]["forecasted_val_acc"]
+            self.generation[i]['higher_than_baseline'] = last_fcst_acc >= baseline_metric
+
     def get_best_model(self):
         # Sort individuals by validation accuracy in descending order
         sorted_generation = sorted(self.generation.items(), key=lambda x: x[1]["val_acc"][-1], reverse=True)
@@ -164,6 +203,7 @@ class Generation():
         efforts = []
         instance_sizes = []
         forecasted_accuracies = []
+        higher_than_baseline = []
 
         for i in range(self.n_individuals):
             architectures.append(self.generation[i]["architecture"])
@@ -175,6 +215,7 @@ class Generation():
             efforts.append(self.generation[i]["effort"])   
             instance_sizes.append(self.generation[i]["n_instances"])   
             forecasted_accuracies.append(self.generation[i]["forecasted_val_acc"])   
+            higher_than_baseline.append(self.generation[i]["higher_than_baseline"])
 
         # Create a DataFrame with the architectures and their corresponding metrics
         architectures_df = pd.DataFrame(architectures)
@@ -186,23 +227,29 @@ class Generation():
         architectures_df['efforts'] = efforts
         architectures_df['n_instances'] = instance_sizes
         architectures_df['fcst_accuracy'] = forecasted_accuracies
+        architectures_df['higher_than_baseline'] = higher_than_baseline
 
         df = pd.DataFrame(architectures_df)
-        # Sort by validation accuracy in descending order
         df['final_val_acc'] = df['val_acc'].apply(lambda x: x[-1] if isinstance(x, list) else x)
         df['final_val_loss'] = df['val_loss'].apply(lambda x: x[-1] if isinstance(x, list) else x)
         
-        self.history = df.sort_values('final_val_acc', ascending=False).reset_index(drop=True)
+        self.history = df.sort_values('fcst_accuracy', ascending=False).reset_index(drop=True)
+
+        
+
         return self.history
+        # Sort by validation accuracy in descending order
 
     def run_generation(self,
                        X_train, y_train, X_val, y_val,
-                       percentile_drop=25, goal_metric=None):
+                       percentile_drop=25, goal_metric=None,
+                       epoch_threshold=3):
     
         # Generation is trained, and dropped
         self.train_generation(X_train, y_train)
         self.validate_generation(X_val, y_val)
-        self.forecast_generation()
+        self.forecast_generation(epoch_threshold=epoch_threshold)
+        self.score_individuals(baseline_metric=goal_metric)
         self.n_instances *= 2  # Increase instance budget for next generation
         self.n_instances = min(self.n_instances, len(X_train))
 
@@ -213,17 +260,32 @@ class Generation():
         return self.generation
     
     def run_ebe(self,
-                X_train, y_train, X_val, y_val,
-                percentile_drop=25, epochs=5):
+            X_train, y_train, X_val, y_val,
+            percentile_drop=25, epochs=50, baseline_metric=None,
+            time_budget=60, epoch_threshold=3):
+    
+        self.epoch_threshold = epoch_threshold
+        start_time = time.time()
         
-    # Estimate best performance in other models 
-        # goal_metric = get_models_and_baseline_metric(X_train, y_train)
         for epoch in range(epochs):
+            current_time = time.time()
+            elapsed_time = current_time - start_time
+
+            if elapsed_time >= time_budget:
+                print(f"Time budget exceeded at epoch {epoch + 1}: {elapsed_time:.2f} seconds")
+                if epoch <= self.epoch_threshold - 1:
+                    print("Not enough epochs completed for forecasting, stopping EBE.")
+                    print('Try to reduce the number of candidates or increase the time budget')
+                    break
+                break
+
             print(f"Epoch {epoch + 1}/{epochs} - Running EBE")
 
-            self.generation = self.run_generation(X_train, y_train, 
-                                                  X_val, y_val,
-                                                  percentile_drop=percentile_drop)
+            self.generation = self.run_generation(X_train, y_train,
+                                                X_val, y_val,
+                                                percentile_drop=percentile_drop,
+                                                goal_metric=baseline_metric,
+                                                epoch_threshold=epoch_threshold)
 
             self.num_models = len(self.generation)
             if self.num_models <= 10:
@@ -231,4 +293,6 @@ class Generation():
                 break
 
             # Increase drop but limit to 50%
-            percentile_drop = min(percentile_drop + 5, 50)
+            percentile_drop = min(percentile_drop + 10, 50)
+
+
