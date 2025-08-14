@@ -222,12 +222,15 @@ class DynamicNN(nn.Module):  # MLP
                 # print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {train_loss:.4f}")
                 # return train_loss
             
-            return train_loss, train_acc
+        return train_loss, train_acc
 
     
-    def es_train(self, train_loader, val_loader, es_patience=50, max_epochs=300, 
-                verbose=False, task_type='classification'):
-        best_metric = -float('inf') if task_type == 'classification' else float('inf')
+    def es_train(self, train_loader, val_loader, 
+                 es_patience=50, max_epochs=300, 
+                 verbose=False, task_type='classification'):
+        # Initialize best_metric consistently
+        best_metric = -float('inf')  # Always maximize
+
         epochs_without_improvement = 0
         best_model_state = None
 
@@ -237,7 +240,7 @@ class DynamicNN(nn.Module):  # MLP
         best_val_acc = None    # None for regression
 
         for epoch in range(1, max_epochs + 1):
-            train_loss, train_acc = self.oe_train(train_loader, task_type=task_type)
+            train_loss, train_acc = self.oe_train(train_loader)
 
             self.eval()
             running_loss_val = 0.0
