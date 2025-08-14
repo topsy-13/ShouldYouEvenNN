@@ -10,7 +10,7 @@ def sigmoid(x, L, k, x0):
 def rational_model(x, a, b):
     return (a * x) / (b + x)
 
-def forecast_accuracy(efforts, accuracies, max_effort=100, model_type='linear', degree=2):
+def forecast_accuracy(efforts, accuracies, max_effort=300, model_type='rational', degree=2):
     X = np.array(efforts).reshape(-1, 1)
     y = np.array(accuracies)
 
