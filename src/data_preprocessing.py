@@ -1,6 +1,7 @@
 import openml
 import numpy as np
 import pandas as pd
+from pandas.api.types import is_numeric_dtype
 import random
 
 import torch
@@ -15,6 +16,7 @@ from sklearn.model_selection import train_test_split
 def load_openml_dataset(dataset_id=334):
     """Loads dataset from OpenML and returns it as a Pandas DataFrame."""
     dataset = openml.datasets.get_dataset(dataset_id)
+    print(f"Trying with Dataset: {dataset.name}")
     X, y, _, _ = dataset.get_data(target=dataset.default_target_attribute)
     return X, y
 
@@ -41,7 +43,7 @@ def preprocess_target(y, encode_labels=True):
     if isinstance(y, pd.Series):
         y = y.values  # Keep it raw
 
-    if encode_labels and not np.issubdtype(y.dtype, np.number):
+    if encode_labels and not is_numeric_dtype(y):
         print("Class column is not numeric. Applying LabelEncoder.")
         y = LabelEncoder().fit_transform(y)
 
