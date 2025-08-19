@@ -1,3 +1,6 @@
+import numpy as np
+import random
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -17,6 +20,7 @@ class Generation():
                  task_type='classification'):
         self.task_type = task_type
         self.search_space = search_space
+        self.max_individuals = n_individuals
         self.n_individuals = n_individuals
         self.generation = self.build_generation()
         self.n_instances = starting_instances
@@ -94,6 +98,95 @@ class Generation():
         # Extract the keys of the worst individuals
         self.worst_individuals = [key for key, _ in sorted_generation[:n_worst_individuals]]
 
+    def build_new_models(self, search_space):
+        self.n_individuals = len(self.generation)  # Update the count
+
+        # Build new models based on the amount of dropped individuals
+        n_new_models = self.max_individuals - self.n_individuals
+        n_basic_models = int(n_new_models * 0.5)  # 50% of the new models will be basic
+        n_advanced_models = n_new_models - n_basic_models  # The rest will be evolutions
+
+        new_generation = {}
+        for i in range(n_basic_models):
+            architecture = search_space.sample_architecture()
+            model = search_space.create_model(architecture, task_type=self.task_type)
+            # Create a new model entry but that starts i as the len of the generation
+            # so that it does not overwrite the existing ones
+            new_generation[i + self.n_individuals] = {
+                "model": model,
+                "architecture": architecture,
+                "batch_size": architecture['batch_size'],
+                "n_instances": [],
+                "proportion_instances": [],
+                'effort': [],
+                'train_loss': [],
+                "train_acc": [],
+                'val_loss': [],
+                "val_acc": [],
+                "forecasted_val_acc": 0.0,
+                "score": 0.0,
+                "forecast_gain": 0.0,
+                'higher_than_baseline': False
+            }
+        
+        # TODO: Now create evolutions of the existing models
+        for i in range(n_advanced_models):
+            # Select sample of individuals to evolve
+            parents = self.weighted_random_selection(k=2)
+            parent1 = parents[0]['architecture']
+            parent2 = parents[1]['architecture']
+
+            # Crossover
+            child_architecture = self.crossover(parent1, parent2)
+            # Create a new model with the child architecture
+            child_model = search_space.create_model(child_architecture, task_type=self.task_type)
+            # Add the child model to the generation
+            new_generation[i + n_basic_models + self.n_individuals] = {
+                "model": child_model,
+                "architecture": child_architecture,
+                "batch_size": child_architecture['batch_size'],
+                "n_instances": [],
+                "proportion_instances": [],
+                'effort': [],
+                'train_loss': [],
+                "train_acc": [],
+                'val_loss': [],
+                "val_acc": [],
+                "forecasted_val_acc": 0.0,
+                "score": 0.0,
+                "forecast_gain": 0.0,
+                'higher_than_baseline': False
+            }    
+        # Merge the new models into the existing generation
+        self.generation.update(new_generation)
+        self.n_individuals = len(self.generation)  # Update the count
+        
+        return
+    
+    def crossover(self, parent1, parent2):
+        """Create a child model configuration from two parents."""
+        child = {}
+
+        for key in parent1.keys():
+            if key == 'hidden_layers':
+                # one-point crossover on list
+                cut = random.randint(1, min(len(parent1[key]), len(parent2[key])) - 1)
+                child[key] = parent1[key][:cut] + parent2[key][cut:]
+            elif key == 'scheduler_params' and isinstance(parent1[key], dict) and isinstance(parent2[key], dict):
+                all_keys = set(parent1[key].keys()) | set(parent2[key].keys())  # union of keys
+                child[key] = {}
+                for k in all_keys:
+                    if k in parent1[key] and k in parent2[key]:
+                        child[key][k] = random.choice([parent1[key][k], parent2[key][k]])
+                    elif k in parent1[key]:
+                        child[key][k] = parent1[key][k]
+                    else:
+                        child[key][k] = parent2[key][k]
+            else:
+                # Simple gene pick
+                child[key] = random.choice([parent1[key], parent2[key]])
+
+        return child
 
     def drop_worst_individuals(self):
         # Clean up GPU memory before removing references
@@ -112,6 +205,19 @@ class Generation():
         # Re-index the remaining individuals to maintain continuous keys
         self.generation = {new_idx: val for new_idx, (_, val) in enumerate(self.generation.items())}
         self.n_individuals = len(self.generation)  # Update the count
+
+
+    def weighted_random_selection(self, k=2):
+        """
+        Select k candidates based on weighted probabilities from fitness scores.
+        Higher fitness = higher probability of being chosen.
+        """
+        candidates = list(self.generation.keys())
+        scores = np.array([self.generation[i]['score'] for i in candidates])
+        probabilities = scores / scores.sum()  # Normalize to get probabilities
+        selected_indices = np.random.choice(candidates, size=k, p=probabilities)
+        return [self.generation[i] for i in selected_indices]
+
 
     def drop_all_except_best(self):
         # Sort individuals by score ranking (higher score is better)
@@ -184,13 +290,13 @@ class Generation():
                 last_fcst_acc = self.generation[i]["forecasted_val_acc"]
             self.generation[i]['higher_than_baseline'] = last_fcst_acc >= baseline_metric
 
-    def get_best_model(self):
-        # Sort individuals by validation accuracy in descending order
-        sorted_generation = sorted(self.generation.items(), key=lambda x: x[1]["val_acc"][-1], reverse=True)
+    def get_best_model(self, n_candidate=0):
+        # Sort individuals by score in descending order
+        sorted_generation = sorted(self.generation.items(), key=lambda x: x[1]["score"], reverse=True)
         
-        # Return the best model
-        best_individual = sorted_generation[0][0]
-        return self.generation[best_individual]["model"]
+        # Get the n-th best model
+        nth_best_individual = sorted_generation[n_candidate][0]
+        return self.generation[nth_best_individual]["model"]
 
     def return_df(self):
         # As a dataframe
@@ -230,12 +336,16 @@ class Generation():
         architectures_df['higher_than_baseline'] = higher_than_baseline
 
         df = pd.DataFrame(architectures_df)
-        df['final_val_acc'] = df['val_acc'].apply(lambda x: x[-1] if isinstance(x, list) else x)
-        df['final_val_loss'] = df['val_loss'].apply(lambda x: x[-1] if isinstance(x, list) else x)
+        df['last_epoch_val_acc'] = df['val_acc'].apply(
+            lambda x: x[-1] if isinstance(x, list) and len(x) > 0 else np.nan)
+        df['last_epoch_val_loss'] = df['val_loss'].apply(
+            lambda x: x[-1] if isinstance(x, list) and len(x) > 0 else np.nan
+        )
         
-        self.history = df.sort_values('fcst_accuracy', ascending=False).reset_index(drop=True)
+        # Drop untrained models
+        df = df[df['last_epoch_val_acc'].notna()]
 
-        
+        self.history = df.sort_values('fcst_accuracy', ascending=False).reset_index(drop=True)
 
         return self.history
         # Sort by validation accuracy in descending order
@@ -256,6 +366,8 @@ class Generation():
 
         self.get_worst_individuals(percentile_drop)
         self.drop_worst_individuals()
+        self.build_new_models(self.search_space)
+
 
         return self.generation
     
