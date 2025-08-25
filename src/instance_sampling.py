@@ -1,6 +1,6 @@
 import numpy as np
 import data_preprocessing as dp
-# TODO: Incorporate this into the generations py module
+from utils import set_seed
 
 def resolve_instance_budget(X, budget, mode="absolute", max_cap=None):
     """
@@ -31,7 +31,8 @@ def resolve_instance_budget(X, budget, mode="absolute", max_cap=None):
 
 from sklearn.model_selection import StratifiedShuffleSplit
 
-def sample_data(X, y, budget, mode="absolute", max_cap=None, task_type='classification'):
+def sample_data(X, y, budget, mode="absolute", max_cap=None, task_type='classification', seed=None):
+
     n_samples = resolve_instance_budget(X, budget, mode=mode, max_cap=max_cap)
     total_samples = len(X)
 
@@ -40,11 +41,12 @@ def sample_data(X, y, budget, mode="absolute", max_cap=None, task_type='classifi
         return X, y
 
     if task_type == 'classification':
-        sss = StratifiedShuffleSplit(n_splits=1, train_size=n_samples, random_state=None)
+        sss = StratifiedShuffleSplit(n_splits=1, train_size=n_samples, random_state=seed)
         train_index, _ = next(sss.split(X, y))
         selected_indices = train_index
 
     elif task_type == 'regression':
+        set_seed(seed)
         selected_indices = np.random.choice(total_samples, size=n_samples, replace=False)
 
     else:

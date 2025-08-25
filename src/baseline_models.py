@@ -8,7 +8,8 @@ def get_best_models(X, y,
                     n_models=30, 
                     max_hpo_iterations=100, 
                     timeout=60, 
-                    scoring_metric='accuracy'):
+                    scoring_metric='accuracy',
+                    random_state=13):
     
     # Convert X
     if isinstance(X, torch.Tensor):
@@ -29,7 +30,8 @@ def get_best_models(X, y,
     naml = naiveautoml.NaiveAutoML(
         timeout_candidate=timeout, 
         max_hpo_iterations=max_hpo_iterations,
-        scoring=scoring_metric
+        scoring=scoring_metric, 
+        random_state=random_state
     )
     naml.fit(X, y)
 
@@ -42,22 +44,32 @@ def get_best_models(X, y,
     return scoreboard
 
 
-def get_baseline_metric(scoreboard: pd.DataFrame):
-    baseline_metrics = scoreboard.iloc[:,1].min()
+def get_baseline_metric(scoreboard: pd.DataFrame, strategy: str='best'):
+    if strategy == 'best':
+        baseline_metrics = scoreboard.iloc[:,1].max()
+    elif strategy == 'worst':
+        baseline_metrics = scoreboard.iloc[:,1].min()
+    elif strategy == 'mean':
+        baseline_metrics = scoreboard.iloc[:,1].mean()
+    elif strategy == 'median':
+        baseline_metrics = scoreboard.iloc[:,1].median()
+
     return baseline_metrics
 
 
 def get_models_and_baseline_metric(X, y, n_models=10, 
                                     max_hpo_iterations=100, timeout=60, 
-                                    scoring_metric='accuracy'):
+                                    scoring_metric='accuracy', random_state=13,
+                                    strategy='best'):
     # Start time
     start_time = time.time()
 
     # Get the best models
-    scoreboard = get_best_models(X, y, n_models, max_hpo_iterations, timeout, scoring_metric)
+    scoreboard = get_best_models(X, y, n_models, max_hpo_iterations, timeout, scoring_metric, random_state=random_state)
     
     # Get the baseline metric
-    baseline_metrics = get_baseline_metric(scoreboard)
+    baseline_metrics = get_baseline_metric(scoreboard, 
+                                           strategy=strategy)
     
     # End time
     end_time = time.time()

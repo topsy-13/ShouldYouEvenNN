@@ -6,11 +6,12 @@ import math
 import random
 
 from architecture_generator import DynamicNN
+from utils import set_seed
 
 # region Search Space
 class SearchSpace():
     
-    def __init__(self, input_size, output_size, 
+    def __init__(self, input_size, output_size,
                  min_layers=2, max_layers=50, 
                  min_neurons=3, max_neurons=500,
                  activation_fns=[nn.ReLU, nn.LeakyReLU, nn.Sigmoid, nn.Tanh, nn.ELU, nn.GELU],
@@ -23,7 +24,8 @@ class SearchSpace():
                  skip_connection_options=[True, False],
                  initializers=['xavier_uniform', 'xavier_normal', 'kaiming_uniform', 'kaiming_normal'],
                  lr_schedulers=['step', 'exponential', 'cosine', 'none']):
-        
+
+        # Store parameters    
         self.input_size = input_size
         self.output_size = output_size
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -54,7 +56,13 @@ class SearchSpace():
             power *= 2
 
 
-    def sample_architecture(self):
+    def sample_architecture(self, seed=None):
+        # Set seed for reproducibility
+        if seed is None:
+            seed = random.randint(0, 100000)
+
+        set_seed(seed)
+
         hidden_layers = random.choices(range(self.neurons[0], self.neurons[1]), 
                                        k=random.randint(self.layers[0], self.layers[1]))
         activation_fn = random.choice(self.activation_fns)
@@ -98,7 +106,8 @@ class SearchSpace():
             'use_skip_connections': use_skip_connections,
             'initializer': initializer,
             'lr_scheduler': lr_scheduler,
-            'scheduler_params': scheduler_params
+            'scheduler_params': scheduler_params,
+            'seed':seed
         }
 
     def create_model(self, architecture, task_type='classification'):
@@ -107,8 +116,11 @@ class SearchSpace():
         dropout_rate = architecture["dropout_rate"]
         optimizer_type = architecture["optimizer_type"]
         learning_rate = architecture["learning_rate"]
-        self.batch_size = architecture["batch_size"]  # extract the batch size for dataloader
-        
+        self.batch_size = architecture["batch_size"]  #* extract the batch size for dataloader, unused
+
+        # extrtact seed and set it
+        seed = architecture.get("seed", None)
+
         # Extract new parameters with defaults if not present (for backward compatibility)
         weight_decay = architecture.get("weight_decay", 0)
         momentum = architecture.get("momentum", None)
@@ -129,7 +141,8 @@ class SearchSpace():
             lr_scheduler=lr_scheduler,
             scheduler_params=scheduler_params,
             device=self.device,
-            task_type=task_type
+            task_type=task_type,
+            seed=seed
         ).to(self.device)
         
         return model

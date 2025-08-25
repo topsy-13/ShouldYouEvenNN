@@ -13,11 +13,18 @@ import time
 
 # from baseline_models import get_models_and_baseline_metric
 from forecaster import forecast_accuracy
+from utils import set_seed
 
 # region Generations
 class Generation():
-    def __init__(self, search_space, n_individuals, starting_instances=100, 
+    def __init__(self, search_space, n_individuals,
+                 starting_instances=100, seed=None,
                  task_type='classification'):
+        
+        if seed is None:
+            seed = random.randint(0, 100000)
+
+        self.seed = seed
         self.task_type = task_type
         self.search_space = search_space
         self.max_individuals = n_individuals
@@ -29,7 +36,7 @@ class Generation():
     def build_generation(self):
         generation = {}
         for i in range(self.n_individuals):
-            architecture = self.search_space.sample_architecture()
+            architecture = self.search_space.sample_architecture(seed=i * self.seed)
             model = self.search_space.create_model(architecture, task_type=self.task_type)
             generation[i] = {
                 "model": model,
@@ -42,7 +49,7 @@ class Generation():
                 "train_acc": [],
                 'val_loss': [],
                 "val_acc": [],
-                "forecasted_val_acc": [],
+                "forecasted_val_acc": 0.0,
                 "score": 0.0,
                 "forecast_gain": 0.0,
                 'higher_than_baseline': False
@@ -51,10 +58,13 @@ class Generation():
     
     def train_generation(self, X_train, y_train):
         for i in range(self.n_individuals):
+            seed = self.generation[i]["architecture"].get("seed", None)
             model = self.generation[i]["model"]
             batch_size = self.generation[i]["batch_size"]
             dataset_fraction = self.n_instances / len(X_train)
             
+            # Set seed for reproducibility
+            set_seed(seed)
             # Sample data based on the instance budget
             X_sampled, y_sampled = sample_data(X_train, y_train, self.n_instances, mode="absolute")
 
@@ -62,6 +72,8 @@ class Generation():
             self.n_instances = min(self.n_instances, len(X_train))
             # Create a DataLoader with the architecture-specific batch size
             train_loader = create_dataloaders(X=X_sampled, y=y_sampled, batch_size=batch_size)
+            # print(train_loader.dataset.tensors[0].shape)
+            # print(train_loader.dataset.tensors[1].shape)
 
             train_loss, train_acc = model.oe_train(train_loader)
             self.generation[i]["train_loss"].append(train_loss)  
@@ -76,6 +88,8 @@ class Generation():
         for i in range(self.n_individuals):
             model = self.generation[i]["model"]
             batch_size = self.generation[i]["batch_size"]
+            seed = self.generation[i]["architecture"].get("seed", None)
+            set_seed(seed)
             # Sample data based on the instance budget
             X_sampled, y_sampled = sample_data(X_val, y_val, self.n_instances, mode="absolute", task_type=self.task_type)
             
@@ -108,7 +122,7 @@ class Generation():
 
         new_generation = {}
         for i in range(n_basic_models):
-            architecture = search_space.sample_architecture()
+            architecture = search_space.sample_architecture(seed=i*5 + self.seed)
             model = search_space.create_model(architecture, task_type=self.task_type)
             # Create a new model entry but that starts i as the len of the generation
             # so that it does not overwrite the existing ones
@@ -129,15 +143,17 @@ class Generation():
                 'higher_than_baseline': False
             }
         
-        # TODO: Now create evolutions of the existing models
+        # Create mutations of the existing models
         for i in range(n_advanced_models):
             # Select sample of individuals to evolve
-            parents = self.weighted_random_selection(k=2)
+            parents = self.weighted_random_selection(k=2,
+                                                     seed=i+self.seed*3)
             parent1 = parents[0]['architecture']
             parent2 = parents[1]['architecture']
 
             # Crossover
-            child_architecture = self.crossover(parent1, parent2)
+            child_architecture = self.crossover(parent1, parent2, 
+                                                seed=i*7 + self.seed)
             # Create a new model with the child architecture
             child_model = search_space.create_model(child_architecture, task_type=self.task_type)
             # Add the child model to the generation
@@ -163,8 +179,10 @@ class Generation():
         
         return
     
-    def crossover(self, parent1, parent2):
+    def crossover(self, parent1, parent2, seed=None):
         """Create a child model configuration from two parents."""
+        seed = seed if seed is not None else random.randint(0, 100000)
+        set_seed(seed)
         child = {}
 
         for key in parent1.keys():
@@ -207,11 +225,15 @@ class Generation():
         self.n_individuals = len(self.generation)  # Update the count
 
 
-    def weighted_random_selection(self, k=2):
+    def weighted_random_selection(self, k=2, seed=None):
         """
         Select k candidates based on weighted probabilities from fitness scores.
         Higher fitness = higher probability of being chosen.
         """
+        if seed is None:
+            seed = random.randint(0, 100000)
+        
+        set_seed(seed)
         candidates = list(self.generation.keys())
         scores = np.array([self.generation[i]['score'] for i in candidates])
         probabilities = scores / scores.sum()  # Normalize to get probabilities
@@ -345,10 +367,10 @@ class Generation():
         # Drop untrained models
         df = df[df['last_epoch_val_acc'].notna()]
 
+        # Sort by forecasted accuracy in descending order
         self.history = df.sort_values('fcst_accuracy', ascending=False).reset_index(drop=True)
 
         return self.history
-        # Sort by validation accuracy in descending order
 
     def run_generation(self,
                        X_train, y_train, X_val, y_val,
@@ -391,7 +413,7 @@ class Generation():
                     break
                 break
 
-            print(f"Epoch {epoch + 1}/{epochs} - Running EBE")
+            print(f"Epoch {epoch + 1}/{epochs}")
 
             self.generation = self.run_generation(X_train, y_train,
                                                 X_val, y_val,

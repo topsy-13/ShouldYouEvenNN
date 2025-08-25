@@ -6,3 +6,8 @@ A rational curve extrapolation model:
 “a deliberately minimal extrapolator that is good enough to enable the decision task.”
 While more sophisticated models exist, our objective is not to maximize extrapolation fidelity per se, but to build the lightest-possible decision procedure that can separate promising neural candidates from hopeless ones under tight resource budgets.
 
+WIP:
+- Set seed for reproducibility. 
+-- Search Space (done)
+-- Architecture generator
+-- Data preprocessing
