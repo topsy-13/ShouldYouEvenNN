@@ -16,7 +16,7 @@ from sklearn.model_selection import train_test_split
 def load_openml_dataset(dataset_id=334):
     """Loads dataset from OpenML and returns it as a Pandas DataFrame."""
     dataset = openml.datasets.get_dataset(dataset_id)
-    print(f"Trying with Dataset: {dataset.name}")
+    print(f"Loading Dataset: {dataset.name}")
     X, y, _, _ = dataset.get_data(target=dataset.default_target_attribute)
     return X, y
 
