@@ -244,7 +244,6 @@ class DynamicNN(nn.Module):  # MLP
         # Learning curve tracking
         if return_lc:
             learning_curve = {
-                'epochs': [],
                 'train_loss': [],
                 'val_loss': [],
                 'train_acc': [],  # Will be empty for regression
