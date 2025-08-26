@@ -1,11 +1,17 @@
 {
     "seed": 13,
     "data_id": 54,
-    "time_taken": 19.808099508285522,
-    "baseline_metric": 0.6967739999999999,
-    "max_metric": 0.8296,
-    "median_metric": 0.69625,
-    "worst_metric": 0.4963,
+    "strategy": "mean",
+    "n_models": 50,
+    "time_taken": 19.470441341400146,
+    "baseline_metric": 0.67414,
+    "metrics": {
+        "best": 0.8296,
+        "median": 0.6815,
+        "mean": 0.67414,
+        "worst": 0.4907
+    },
+    "test_accuracy_best_non_nn_model": 0.8470588235294118,
     "scoreboard": [
         {
             "pipeline": "Pipeline(steps=[('data-pre-processor', MinMaxScaler()),\n                ('learner', QuadraticDiscriminantAnalysis())])",
@@ -44,16 +50,16 @@
             "accuracy": 0.8204
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.9981554296161, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.6584145317968))])",
-            "accuracy": 0.8167
-        },
-        {
             "pipeline": "Pipeline(steps=[('learner', SVC(kernel='linear'))])",
             "accuracy": 0.813
         },
         {
+            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.9989193465654, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.0353647732894))])",
+            "accuracy": 0.8111
+        },
+        {
             "pipeline": "Pipeline(steps=[('learner', MLPClassifier())])",
-            "accuracy": 0.8037
+            "accuracy": 0.8019
         },
         {
             "pipeline": "Pipeline(steps=[('learner', LogisticRegression())])",
@@ -64,8 +70,8 @@
             "accuracy": 0.7926
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.9937065381273, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.8906366949822))])",
-            "accuracy": 0.7889
+            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.9906923184819, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.2234677850282))])",
+            "accuracy": 0.7685
         },
         {
             "pipeline": "Pipeline(steps=[('data-pre-processor', QuantileTransformer()),\n                ('learner', QuadraticDiscriminantAnalysis())])",
@@ -76,99 +82,79 @@
             "accuracy": 0.7593
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.9883557571951, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.4193434001657))])",
-            "accuracy": 0.7537
-        },
-        {
             "pipeline": "Pipeline(steps=[('learner', SVC())])",
             "accuracy": 0.7481
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.9868318700909, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.1261627603805))])",
+            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.9921509301189, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.0187653499102))])",
             "accuracy": 0.7444
         },
         {
             "pipeline": "Pipeline(steps=[('learner', RandomForestClassifier())])",
-            "accuracy": 0.7352
+            "accuracy": 0.7407
         },
         {
             "pipeline": "Pipeline(steps=[('learner', ExtraTreesClassifier())])",
-            "accuracy": 0.7352
+            "accuracy": 0.7241
         },
         {
             "pipeline": "Pipeline(steps=[('learner', SVC(kernel='poly'))])",
             "accuracy": 0.7167
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.9826861346035, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.2766596317388))])",
-            "accuracy": 0.7019
-        },
-        {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9801271117307)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.2358060631839))])",
-            "accuracy": 0.6981
-        },
-        {
             "pipeline": "Pipeline(steps=[('learner', KNeighborsClassifier())])",
             "accuracy": 0.6944
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9722259278278)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.1390486454988))])",
-            "accuracy": 0.6907
+            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.9729427710583, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.3711465164777))])",
+            "accuracy": 0.687
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.973997164143)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.4053666426163))])",
-            "accuracy": 0.6889
-        },
-        {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9651428107725)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.2053556061521))])",
+            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.9705274372862, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.4783715540467))])",
             "accuracy": 0.6852
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.9668989494317, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.5744839252901))])",
-            "accuracy": 0.6741
-        },
-        {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9714278041963)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.618203773513))])",
-            "accuracy": 0.6741
-        },
-        {
             "pipeline": "Pipeline(steps=[('learner', DecisionTreeClassifier())])",
-            "accuracy": 0.6704
+            "accuracy": 0.6778
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9140544075173)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.2867990163682))])",
+            "pipeline": "Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9570424516)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.4185954667336))])",
+            "accuracy": 0.663
+        },
+        {
+            "pipeline": "Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9300524113775)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.260028580863))])",
             "accuracy": 0.6593
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.9584987959606, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.3911709873161))])",
-            "accuracy": 0.6537
+            "pipeline": "Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9116150090771)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.3834723962735))])",
+            "accuracy": 0.6519
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9571580355883)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.203529807316))])",
+            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.9575557965521, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.4577741776368))])",
             "accuracy": 0.6481
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.925761662324)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.485237452534))])",
-            "accuracy": 0.6481
+            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.950749469232, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.3203606870099))])",
+            "accuracy": 0.6444
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9244350822707)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.0438712754859))])",
+            "pipeline": "Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9125808523366)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.4969895688752))])",
+            "accuracy": 0.6444
+        },
+        {
+            "pipeline": "Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9388435431757)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.0440551088322))])",
             "accuracy": 0.6407
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.947984944865, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.8680937875531))])",
+            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.9285905407081, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.5841246105048))])",
+            "accuracy": 0.637
+        },
+        {
+            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.9522227125924, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.8794600193922))])",
             "accuracy": 0.6333
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.9133186069329, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.0503517802627))])",
-            "accuracy": 0.6333
-        },
-        {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.9252389901305, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.0067218093367))])",
-            "accuracy": 0.6315
-        },
-        {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.9414818249214, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.7627018948349))])",
+            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.9589702214072, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.0043251587476))])",
             "accuracy": 0.6315
         },
         {
@@ -176,36 +162,56 @@
             "accuracy": 0.5648
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9461996239523)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.8060394068175))])",
-            "accuracy": 0.5648
-        },
-        {
             "pipeline": "Pipeline(steps=[('feature-pre-processor', PolynomialFeatures()),\n                ('learner', QuadraticDiscriminantAnalysis())])",
             "accuracy": 0.513
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.8214052808711, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.5508950975414))])",
+            "pipeline": "Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.8972886176491)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.4684649190532))])",
+            "accuracy": 0.5111
+        },
+        {
+            "pipeline": "Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9031296728195)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.631003802335))])",
             "accuracy": 0.5056
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.8761702498914)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.3849666947245))])",
-            "accuracy": 0.5037
+            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.8126162869022, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.5784541597691))])",
+            "accuracy": 0.5056
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.8468239551006, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.5857848572073))])",
-            "accuracy": 0.5037
+            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.8587225514859, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.2411880250288))])",
+            "accuracy": 0.5
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.8688279956662)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.3741422849892))])",
-            "accuracy": 0.5037
+            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.8090687088046, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.1904474692021))])",
+            "accuracy": 0.5
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9135848627907)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.9017173554501))])",
+            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.7648365725369, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.3598137918497))])",
+            "accuracy": 0.4981
+        },
+        {
+            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.7435565159151, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.4187093229634))])",
+            "accuracy": 0.4981
+        },
+        {
+            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.8413774999058, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.6600401131058))])",
             "accuracy": 0.4963
         },
         {
-            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.8473457003429, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.7829993964465))])",
+            "pipeline": "Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.8426731900628)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.3301505284676))])",
             "accuracy": 0.4963
+        },
+        {
+            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.8111744301062, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.0837756290349))])",
+            "accuracy": 0.4944
+        },
+        {
+            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.7422507046731, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.4247788834942))])",
+            "accuracy": 0.4926
+        },
+        {
+            "pipeline": "Pipeline(steps=[('feature-pre-processor',\n                 PCA(n_components=0.7426856519106, whiten=True)),\n                ('learner',\n                 QuadraticDiscriminantAnalysis(reg_param=0.6060114392425))])",
+            "accuracy": 0.4907
         }
     ]
 }
