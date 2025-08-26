@@ -227,8 +227,9 @@ class DynamicNN(nn.Module):  # MLP
 
     
     def es_train(self, train_loader, val_loader, 
-                 es_patience=50, max_epochs=300, 
-                 verbose=False, task_type='classification'):
+             es_patience=50, max_epochs=300, 
+             verbose=False, task_type='classification',
+             return_lc=False):
         # Initialize best_metric consistently
         best_metric = -float('inf')  # Always maximize
 
@@ -239,7 +240,17 @@ class DynamicNN(nn.Module):  # MLP
         best_train_acc = None  # None for regression
         best_val_loss = None
         best_val_acc = None    # None for regression
-
+        
+        # Learning curve tracking
+        if return_lc:
+            learning_curve = {
+                'epochs': [],
+                'train_loss': [],
+                'val_loss': [],
+                'train_acc': [],  # Will be empty for regression
+                'val_acc': []     # Will be empty for regression
+            }
+        
         for epoch in range(1, max_epochs + 1):
             train_loss, train_acc = self.oe_train(train_loader)
 
@@ -269,6 +280,14 @@ class DynamicNN(nn.Module):  # MLP
             val_loss = running_loss_val / total_val
             val_acc = (correct_val / total_val) if task_type == 'classification' else None
             self.train()
+
+            # Store learning curve data
+            if return_lc:
+                learning_curve['train_loss'].append(train_loss)
+                learning_curve['val_loss'].append(val_loss)
+                if task_type == 'classification':
+                    learning_curve['train_acc'].append(train_acc)
+                    learning_curve['val_acc'].append(val_acc)
 
             # Choose metric for early stopping
             current_metric = val_acc if task_type == 'classification' else -val_loss
@@ -305,7 +324,11 @@ class DynamicNN(nn.Module):  # MLP
         if best_model_state is not None:
             self.load_state_dict(best_model_state)
 
-        return best_train_loss, best_train_acc, best_val_loss, best_val_acc
+        # Return based on return_lc flag
+        if return_lc:
+            return best_train_loss, best_train_acc, best_val_loss, best_val_acc, learning_curve
+        else:
+            return best_train_loss, best_train_acc, best_val_loss, best_val_acc
 
 
     def evaluate(self, val_loader):
