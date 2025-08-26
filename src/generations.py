@@ -56,7 +56,9 @@ class Generation():
             }
         return generation
     
-    def train_generation(self, X_train, y_train):
+    def train_generation(self, X_train, y_train, 
+                         training_mode='oe', X_val=None, y_val=None):
+
         for i in range(self.n_individuals):
             seed = self.generation[i]["architecture"].get("seed", None)
             model = self.generation[i]["model"]
@@ -74,15 +76,31 @@ class Generation():
             train_loader = create_dataloaders(X=X_sampled, y=y_sampled, batch_size=batch_size)
             # print(train_loader.dataset.tensors[0].shape)
             # print(train_loader.dataset.tensors[1].shape)
+            if training_mode == 'oe':
+                train_loss, train_acc = model.oe_train(train_loader)
+                self.generation[i]["train_loss"].append(train_loss)  
+                self.generation[i]["train_acc"].append(train_acc)
+                num_epochs = len(self.generation[i]['train_loss'])
+                self.effort = dataset_fraction * num_epochs
+                self.generation[i]["n_instances"].append(self.n_instances)
+                self.generation[i]["effort"].append(self.effort)
 
-            train_loss, train_acc = model.oe_train(train_loader)
-            self.generation[i]["train_loss"].append(train_loss)  
-            self.generation[i]["train_acc"].append(train_acc)
-            num_epochs = len(self.generation[i]['train_loss'])
-            self.effort = dataset_fraction * num_epochs
-            self.generation[i]["n_instances"].append(self.n_instances)
-            self.generation[i]["effort"].append(self.effort)
-    
+            elif training_mode == 'es':
+                assert X_val is not None and y_val is not None, "X_val and y_val must be provided for early stopping training."
+                val_loader = create_dataloaders(X=X_val, y=y_val, batch_size=batch_size)
+                es_results = model.es_train(train_loader, val_loader, 
+                                            es_patience=50, max_epochs=300, 
+                                            return_lc=True)
+                # Unpack results
+                best_train_loss, best_train_acc, best_val_loss, best_val_acc, learning_curve = es_results
+                results = {
+                    'final_train_loss': best_train_loss,
+                    'final_train_acc': best_train_acc,
+                    'final_val_loss': best_val_loss,
+                    'final_val_acc': best_val_acc,
+                    'learning_curve': learning_curve
+                }
+                self.generation[i].update(results)
 
     def validate_generation(self, X_val, y_val):
         for i in range(self.n_individuals):
