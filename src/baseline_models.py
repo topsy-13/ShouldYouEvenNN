@@ -40,8 +40,9 @@ def get_best_models(X, y,
 
     scoreboard = scoreboard.sort_values(by=scoring_metric, ascending=False).head(n_models)
     scoreboard = scoreboard[['pipeline', scoring_metric]]
+    best_model = naml.chosen_model
 
-    return scoreboard
+    return scoreboard, best_model
 
 
 def get_baseline_metric(scoreboard: pd.DataFrame, strategy: str='best'):
@@ -65,7 +66,7 @@ def get_models_and_baseline_metric(X, y, n_models=10,
     start_time = time.time()
 
     # Get the best models
-    scoreboard = get_best_models(X, y, n_models, max_hpo_iterations, timeout, scoring_metric, random_state=random_state)
+    scoreboard, best_model = get_best_models(X, y, n_models, max_hpo_iterations, timeout, scoring_metric, random_state=random_state)
     
     # Get the baseline metric
     baseline_metrics = get_baseline_metric(scoreboard, 
@@ -75,7 +76,7 @@ def get_models_and_baseline_metric(X, y, n_models=10,
     end_time = time.time()
     elapsed_time = end_time - start_time
 
-    return baseline_metrics, elapsed_time, scoreboard
+    return baseline_metrics, elapsed_time, scoreboard, best_model
 
 
 def hypothesis_testing(
