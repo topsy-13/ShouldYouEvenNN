@@ -15,6 +15,91 @@ import time
 from forecaster import forecast_accuracy
 from utils import set_seed
 
+# region Individuals
+class Candidate:
+    def __init__(self, model, architecture):
+        self.model = model
+        self.architecture = architecture
+        self.batch_size = architecture.get("batch_size")
+        self.n_instances = []
+        self.proportion_instances = []
+        self.efforts = []
+        self.metrics = {
+            "train": {"loss": [], "acc": []},
+            "val": {"loss": [], "acc": []},
+            "test": {"loss": [], "acc": []},
+            "forecasted_val_acc": 0.0,
+            "score": 0.0,
+            "forecast_gain": 0.0,
+            "fcst_greater_than_baseline": False
+        }
+
+    def add_metric(self, split, name, initial_value=None):
+        """
+        Add a new metric dynamically.
+        split: "train", "val", "test" or None (for global metrics).
+        name: metric name.
+        initial_value: starting value (list or scalar).
+        """
+        if split in ["train", "val", "test"]:
+            self.metrics[split][name] = initial_value if initial_value is not None else []
+        else:
+            self.metrics[name] = initial_value if initial_value is not None else 0.0
+            
+
+    def log_metric(self, split, metric=None, value=None):
+            if split in self.metrics and isinstance(self.metrics[split], dict):
+                if metric not in self.metrics[split]:
+                    self.metrics[split][metric] = []
+                if isinstance(self.metrics[split][metric], list):
+                    self.metrics[split][metric].append(value)
+                else:
+                    self.metrics[split][metric] = value
+            else:
+                self.metrics[split] = value
+
+
+    def get_metric(self, split, metric=None, last_only=False):
+        """
+        Retrieve a metric value from the nested metrics dict.
+        If last_only=True and metric stores a list, return only the last value.
+        """
+        if split in self.metrics and isinstance(self.metrics[split], dict):
+            if metric not in self.metrics[split]:
+                raise KeyError(f"Metric '{metric}' not found in split '{split}'.")
+            values = self.metrics[split][metric]
+            if isinstance(values, list):
+                return values[-1] if last_only and values else values
+            return values
+        elif split in self.metrics:
+            # Scalars like score, forecasted_val_acc
+            return self.metrics[split]
+        else:
+            raise KeyError(f"Split '{split}' not found in metrics.")
+        
+
+    def __str__(self):
+        # Pull latest values for readability
+        train_loss = self.get_metric("train", "loss", last_only=True)
+        train_acc = self.get_metric("train", "acc", last_only=True)
+        val_loss = self.get_metric("val", "loss", last_only=True)
+        val_acc = self.get_metric("val", "acc", last_only=True)
+        test_acc = self.get_metric("test", "acc", last_only=True)
+        score = self.get_metric("score")
+
+        arch_summary = ", ".join(f"{k}={v}" for k, v in self.architecture.items() if k != "layers")
+
+        return (
+            f"Candidate(\n"
+            f"  Arch: {arch_summary}\n"
+            f"  Train: loss={train_loss}, acc={train_acc}\n"
+            f"  Val:   loss={val_loss}, acc={val_acc}\n"
+            f"  Test:  acc={test_acc}\n"
+            f"  Score: {score}\n"
+            f")"
+        )
+# endregion
+
 # region Generations
 class Generation():
     def __init__(self, search_space, n_individuals,
@@ -38,31 +123,21 @@ class Generation():
         for i in range(self.n_individuals):
             architecture = self.search_space.sample_architecture(seed=i * self.seed)
             model = self.search_space.create_model(architecture, task_type=self.task_type)
-            generation[i] = {
-                "model": model,
-                "architecture": architecture,
-                "batch_size": architecture['batch_size'],
-                "n_instances": [],
-                "proportion_instances": [],
-                'effort': [],
-                'train_loss': [],
-                "train_acc": [],
-                'val_loss': [],
-                "val_acc": [],
-                "forecasted_val_acc": 0.0,
-                "score": 0.0,
-                "forecast_gain": 0.0,
-                'higher_than_baseline': False
-            }
+            generation[i] = Candidate(model, architecture)
+
         return generation
     
     def train_generation(self, X_train, y_train, 
-                         training_mode='oe', X_val=None, y_val=None):
+                         training_mode='oe', X_val=None, y_val=None, 
+                         **kwargs):
 
         for i in range(self.n_individuals):
-            seed = self.generation[i]["architecture"].get("seed", None)
-            model = self.generation[i]["model"]
-            batch_size = self.generation[i]["batch_size"]
+            candidate = self.generation[i]
+            seed = candidate.architecture.get("seed", None)
+            model = candidate.model
+            batch_size = candidate.batch_size
+            # Cap it to the max instances of training data
+            self.n_instances = min(self.n_instances, len(X_train))
             dataset_fraction = self.n_instances / len(X_train)
             
             # Set seed for reproducibility
@@ -70,27 +145,25 @@ class Generation():
             # Sample data based on the instance budget
             X_sampled, y_sampled = sample_data(X_train, y_train, self.n_instances, mode="absolute")
 
-            # Cap it to the max instances
-            self.n_instances = min(self.n_instances, len(X_train))
             # Create a DataLoader with the architecture-specific batch size
             train_loader = create_dataloaders(X=X_sampled, y=y_sampled, batch_size=batch_size)
-            # print(train_loader.dataset.tensors[0].shape)
-            # print(train_loader.dataset.tensors[1].shape)
+            # Train the model
             if training_mode == 'oe':
                 train_loss, train_acc = model.oe_train(train_loader)
-                self.generation[i]["train_loss"].append(train_loss)  
-                self.generation[i]["train_acc"].append(train_acc)
-                num_epochs = len(self.generation[i]['train_loss'])
-                self.effort = dataset_fraction * num_epochs
-                self.generation[i]["n_instances"].append(self.n_instances)
-                self.generation[i]["effort"].append(self.effort)
+                candidate.log_metric('train', 'loss', train_loss)
+                candidate.log_metric('train', 'acc', train_acc)
+                
+                current_epoch = len(candidate.metrics["train"]["loss"])
+                self.effort = dataset_fraction * current_epoch
+                candidate.efforts.append(self.effort)
+                candidate.log_metric('n_instances', value=self.n_instances)
 
             elif training_mode == 'es':
+                print(f'Training individual {i+1}/{self.n_individuals} with Early Stopping...')
                 assert X_val is not None and y_val is not None, "X_val and y_val must be provided for early stopping training."
+
                 val_loader = create_dataloaders(X=X_val, y=y_val, batch_size=batch_size)
-                es_results = model.es_train(train_loader, val_loader, 
-                                            es_patience=50, max_epochs=300, 
-                                            return_lc=True)
+                es_results = model.es_train(train_loader, val_loader, **kwargs)
                 # Unpack results
                 best_train_loss, best_train_acc, best_val_loss, best_val_acc, learning_curve = es_results
                 results = {
@@ -98,37 +171,27 @@ class Generation():
                     'final_train_acc': best_train_acc,
                     'final_val_loss': best_val_loss,
                     'final_val_acc': best_val_acc,
-                    'learning_curve': learning_curve
+                    'learning_curve_es': learning_curve
                 }
-                self.generation[i].update(results)
+                candidate.metrics["final"] = results
 
-    def validate_generation(self, X_val, y_val):
+
+    def validate_generation(self, X_val, y_val, metric='val'):
+
         for i in range(self.n_individuals):
-            model = self.generation[i]["model"]
-            batch_size = self.generation[i]["batch_size"]
-            seed = self.generation[i]["architecture"].get("seed", None)
+            candidate = self.generation[i]
+            model = candidate.model
+            batch_size = candidate.batch_size
+            seed = candidate.architecture.get("seed", None)
             set_seed(seed)
-            # Sample data based on the instance budget
-            X_sampled, y_sampled = sample_data(X_val, y_val, self.n_instances, mode="absolute", task_type=self.task_type)
             
             # Create a DataLoader with the architecture-specific batch size
-            val_loader = create_dataloaders(X=X_sampled, y=y_sampled, batch_size=batch_size)
-            
+            val_loader = create_dataloaders(X=X_val, y=y_val, batch_size=batch_size)
             val_loss, val_acc = model.evaluate(val_loader)
-            self.generation[i]["val_loss"].append(val_loss)
-            self.generation[i]["val_acc"].append(val_acc)
 
+            candidate.log_metric(metric, 'loss', val_loss)
+            candidate.log_metric(metric, 'acc', val_acc)
 
-    def get_worst_individuals(self,
-                              percentile_drop=15):
-    
-        n_worst_individuals = max(1, int(self.n_individuals * percentile_drop / 100))  # Ensure at least 1
-
-        # Sort individuals by score ranking (higher score is better)
-        sorted_generation = sorted(self.generation.items(), key=lambda x: x[1]["score"], reverse=False)
-
-        # Extract the keys of the worst individuals
-        self.worst_individuals = [key for key, _ in sorted_generation[:n_worst_individuals]]
 
     def build_new_models(self, search_space):
         self.n_individuals = len(self.generation)  # Update the count
@@ -139,64 +202,74 @@ class Generation():
         n_advanced_models = n_new_models - n_basic_models  # The rest will be evolutions
 
         new_generation = {}
+        start_idx = self.n_individuals  # so to not overwrite existing ones
         for i in range(n_basic_models):
             architecture = search_space.sample_architecture(seed=i*5 + self.seed)
             model = search_space.create_model(architecture, task_type=self.task_type)
             # Create a new model entry but that starts i as the len of the generation
             # so that it does not overwrite the existing ones
-            new_generation[i + self.n_individuals] = {
-                "model": model,
-                "architecture": architecture,
-                "batch_size": architecture['batch_size'],
-                "n_instances": [],
-                "proportion_instances": [],
-                'effort': [],
-                'train_loss': [],
-                "train_acc": [],
-                'val_loss': [],
-                "val_acc": [],
-                "forecasted_val_acc": 0.0,
-                "score": 0.0,
-                "forecast_gain": 0.0,
-                'higher_than_baseline': False
-            }
+            new_generation[start_idx + i] = Candidate(model=model, 
+                                                      architecture=architecture)
         
         # Create mutations of the existing models
         for i in range(n_advanced_models):
             # Select sample of individuals to evolve
             parents = self.weighted_random_selection(k=2,
                                                      seed=i+self.seed*3)
-            parent1 = parents[0]['architecture']
-            parent2 = parents[1]['architecture']
+            parent1 = parents[0].architecture
+            parent2 = parents[1].architecture
 
             # Crossover
             child_architecture = self.crossover(parent1, parent2, 
                                                 seed=i*7 + self.seed)
+            
             # Create a new model with the child architecture
             child_model = search_space.create_model(child_architecture, task_type=self.task_type)
+
             # Add the child model to the generation
-            new_generation[i + n_basic_models + self.n_individuals] = {
-                "model": child_model,
-                "architecture": child_architecture,
-                "batch_size": child_architecture['batch_size'],
-                "n_instances": [],
-                "proportion_instances": [],
-                'effort': [],
-                'train_loss': [],
-                "train_acc": [],
-                'val_loss': [],
-                "val_acc": [],
-                "forecasted_val_acc": 0.0,
-                "score": 0.0,
-                "forecast_gain": 0.0,
-                'higher_than_baseline': False
-            }    
+            new_generation[i 
+                           + n_basic_models + self.n_individuals] = Candidate(model=child_model, architecture=child_architecture)
+
         # Merge the new models into the existing generation
         self.generation.update(new_generation)
         self.n_individuals = len(self.generation)  # Update the count
         
         return
     
+
+    def weighted_random_selection(self, k=2, seed=None):
+        """
+        Select k candidates based on weighted probabilities from fitness scores.
+        Higher fitness = higher probability of being chosen.
+        Falls back to uniform selection if not enough non-zero probabilities.
+        """
+        if seed is None:
+            seed = random.randint(0, 100000)
+        
+        set_seed(seed)
+        candidates = list(self.generation.keys())
+        
+        # Extract scores
+        scores = np.array([self.generation[i].metrics['score'] for i in candidates], dtype=float)
+        
+        # Normalize scores to get probabilities
+        total = scores.sum()
+        if total > 0:
+            probabilities = scores / total
+        else:
+            probabilities = np.zeros_like(scores)
+        
+        # Handle edge case: fewer non-zero probabilities than k
+        nonzero_candidates = [c for c, prob in zip(candidates, probabilities) if prob > 0]
+        if len(nonzero_candidates) < k:
+            # fallback to uniform random selection
+            selected_indices = np.random.choice(candidates, size=k, replace=False)
+        else:
+            selected_indices = np.random.choice(candidates, size=k, replace=False, p=probabilities)
+        
+        return [self.generation[i] for i in selected_indices]
+
+
     def crossover(self, parent1, parent2, seed=None):
         """Create a child model configuration from two parents."""
         seed = seed if seed is not None else random.randint(0, 100000)
@@ -223,17 +296,29 @@ class Generation():
                 child[key] = random.choice([parent1[key], parent2[key]])
 
         return child
+    
+
+    def get_worst_individuals(self, percentile_drop=15):
+        n_worst_individuals = max(1, int(self.n_individuals * percentile_drop / 100))  # Ensure at least 1
+
+        # Sort individuals by score (lower is worse)
+        sorted_generation = sorted(
+            self.generation.items(),
+            key=lambda x: x[1].metrics["score"],  # access via Candidate.metrics
+            reverse=False
+        )
+
+        # Extract keys of the worst individuals
+        self.worst_individuals = [key for key, _ in sorted_generation[:n_worst_individuals]]
+
 
     def drop_worst_individuals(self):
-        # Clean up GPU memory before removing references
+        # Move all worst models to CPU first
         for idx in self.worst_individuals:
-            if hasattr(self.generation[idx]["model"], "cpu"):
-                self.generation[idx]["model"] = self.generation[idx]["model"].cpu()
-            # Force garbage collection for the model
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                
+            candidate = self.generation[idx]
+            if hasattr(candidate.model, "cpu"):
+                candidate.model = candidate.model.cpu()
+        
         # Remove worst individuals
         for idx in self.worst_individuals:
             del self.generation[idx]
@@ -242,93 +327,52 @@ class Generation():
         self.generation = {new_idx: val for new_idx, (_, val) in enumerate(self.generation.items())}
         self.n_individuals = len(self.generation)  # Update the count
 
-
-    def weighted_random_selection(self, k=2, seed=None):
-        """
-        Select k candidates based on weighted probabilities from fitness scores.
-        Higher fitness = higher probability of being chosen.
-        """
-        if seed is None:
-            seed = random.randint(0, 100000)
-        
-        set_seed(seed)
-        candidates = list(self.generation.keys())
-        scores = np.array([self.generation[i]['score'] for i in candidates])
-        probabilities = scores / scores.sum()  # Normalize to get probabilities
-        selected_indices = np.random.choice(candidates, size=k, p=probabilities)
-        return [self.generation[i] for i in selected_indices]
-
-
-    def drop_all_except_best(self):
-        # Sort individuals by score ranking (higher score is better)
-        sorted_generation = sorted(self.generation.items(), key=lambda x: x[1]["score"], reverse=False)
-        
-        # Keep only the best individual
-        best_individual = sorted_generation[0][0]
-        best_model_data = self.generation[best_individual]
-        
-        # Clean up GPU memory for models that will be discarded
-        for idx, data in self.generation.items():
-            if idx != best_individual:
-                if hasattr(data["model"], "cpu"):
-                    data["model"] = data["model"].cpu()
-        
+        # Clean up GPU memory once
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-            
-        self.generation = {0: best_model_data}
-        self.n_individuals = 1
 
-    def train_best_individual(self, X_train, y_train, num_epochs=1):
-        best_model = self.generation[0]["model"]
-        batch_size = self.generation[0]["batch_size"]
-
-        # Create a DataLoader with the architecture-specific batch size
-        train_loader = create_dataloaders(X=X_train, y=y_train, batch_size=batch_size)
-        best_model.oe_train(train_loader, num_epochs=num_epochs)
     
-    def forecast_generation(self, epoch_threshold=3):
+    def forecast_generation(self, effort_threshold=3):
         for i in range(self.n_individuals):
-            efforts = self.generation[i]["effort"]
-            val_accs = self.generation[i]["val_acc"]
-            if len(efforts) >= epoch_threshold and len(val_accs) >= epoch_threshold:
+            candidate = self.generation[i]
+            efforts = candidate.efforts
+            val_accs = candidate.get_metric('val', 'acc')
+
+            if len(efforts) >= effort_threshold and len(val_accs) >= effort_threshold:
                 forecasted_accuracy = forecast_accuracy(efforts, val_accs, model_type='rational')
-                self.generation[i]["forecasted_val_acc"] = forecasted_accuracy
+                candidate.metrics["forecasted_val_acc"] = forecasted_accuracy
             else: 
                 pass  # Not enough data to forecast
     
+
     def score_individuals(self, baseline_metric):
         self.check_higher_than_baseline(baseline_metric)
 
         for i in range(self.n_individuals):
-            # TODO: use the baseline metric to drop models
-            last_val_acc = self.generation[i]['val_acc'][-1]
-            # get the last forecasted accuracy if empty then 0
-
-            if not self.generation[i]["forecasted_val_acc"]:
+            candidate = self.generation[i]
+            # ? TODO: use the baseline metric to drop models 
+            # get the last validation accuracy and the forecasted
+            last_val_acc = candidate.get_metric('val', 'acc', last_only=True)
+            last_fcst_acc = candidate.get_metric("forecasted_val_acc")
+            if last_fcst_acc is None:
                 last_fcst_acc = 0.0
-            else:
-                last_fcst_acc = self.generation[i]["forecasted_val_acc"]
+            fcst_gain = last_fcst_acc - baseline_metric
+            candidate.log_metric('forecast_gain', value=fcst_gain)
 
-            # print('Last valacc:', last_val_acc)
-            # print('Forecast valacc' ,self.generation[i]["forecasted_val_acc"])
-            # Score is a combination of current accuracy and forecasted 
-            score = 0.7 * last_val_acc + 0.3 * last_fcst_acc
-            # * score models by how much higher their forecast is compared to the baseline:
-            self.generation[i]['forecast_gain'] = last_fcst_acc - baseline_metric
+            # * Playground for later
+            # score models by how much higher their forecast is compared to the baseline:
+            score = max(0.6 * last_val_acc + 0.4 * fcst_gain, 0)
+            candidate.log_metric('score', value=score)
 
-            self.generation[i]['score'] = 0.5 * last_val_acc + 0.5 * self.generation[i]['forecast_gain']
-            
-            self.generation[i]["score"] = score
 
     def check_higher_than_baseline(self, baseline_metric):
         for i in range(self.n_individuals):
-            if not self.generation[i]["forecasted_val_acc"]:
-                last_fcst_acc = 0.0
-            else:
-                last_fcst_acc = self.generation[i]["forecasted_val_acc"]
-            self.generation[i]['higher_than_baseline'] = last_fcst_acc >= baseline_metric
+            candidate = self.generation[i]
+            last_fcst_acc = candidate.get_metric("forecasted_val_acc") or 0.0
+            
+            candidate.log_metric("fcst_greater_than_baseline", value=last_fcst_acc >= baseline_metric)
+
 
     def get_best_model(self, n_candidate=0):
         # Sort individuals by score in descending order
@@ -338,57 +382,43 @@ class Generation():
         nth_best_individual = sorted_generation[n_candidate][0]
         return self.generation[nth_best_individual]["model"]
 
+
     def return_df(self):
-        # As a dataframe
-        architectures = []
-        train_losses = []
-        train_accs = []
-        val_losses = []
-        val_accs = []
-        batch_sizes = []
-        efforts = []
-        instance_sizes = []
-        forecasted_accuracies = []
-        higher_than_baseline = []
+        records = []
+        
+        for i, candidate in self.generation.items():
+            # Start from architecture dict
+            base = dict(candidate.architecture)
+            base.update({
+                "id": i,
+                "batch_size": candidate.batch_size,
+                "n_instances": candidate.n_instances,
+                "efforts": candidate.efforts,
+                "train_loss": candidate.metrics["train"]["loss"],
+                "train_acc": candidate.metrics["train"]["acc"],
+                "val_loss": candidate.metrics["val"]["loss"],
+                "val_acc": candidate.metrics["val"]["acc"],
+                "test_loss": candidate.metrics["test"]["loss"],
+                "test_acc": candidate.metrics["test"]["acc"],
+                "forecasted_val_acc": candidate.metrics["forecasted_val_acc"],
+                "fcst_greater_than_baseline": candidate.metrics["fcst_greater_than_baseline"],
+            })
+            records.append(base)
 
-        for i in range(self.n_individuals):
-            architectures.append(self.generation[i]["architecture"])
-            train_losses.append(self.generation[i]["train_loss"])
-            train_accs.append(self.generation[i]["train_acc"])
-            val_losses.append(self.generation[i]["val_loss"])
-            val_accs.append(self.generation[i]["val_acc"])
-            batch_sizes.append(self.generation[i]["batch_size"])
-            efforts.append(self.generation[i]["effort"])   
-            instance_sizes.append(self.generation[i]["n_instances"])   
-            forecasted_accuracies.append(self.generation[i]["forecasted_val_acc"])   
-            higher_than_baseline.append(self.generation[i]["higher_than_baseline"])
+        df = pd.DataFrame.from_records(records)
 
-        # Create a DataFrame with the architectures and their corresponding metrics
-        architectures_df = pd.DataFrame(architectures)
-        architectures_df['train_loss'] = train_losses
-        architectures_df['train_acc'] = train_accs
-        architectures_df['val_loss'] = val_losses
-        architectures_df['val_acc'] = val_accs
-        architectures_df['batch_size'] = batch_sizes
-        architectures_df['efforts'] = efforts
-        architectures_df['n_instances'] = instance_sizes
-        architectures_df['fcst_accuracy'] = forecasted_accuracies
-        architectures_df['higher_than_baseline'] = higher_than_baseline
-
-        df = pd.DataFrame(architectures_df)
+        # Add last epoch metrics
         df['last_epoch_val_acc'] = df['val_acc'].apply(
             lambda x: x[-1] if isinstance(x, list) and len(x) > 0 else np.nan)
         df['last_epoch_val_loss'] = df['val_loss'].apply(
             lambda x: x[-1] if isinstance(x, list) and len(x) > 0 else np.nan
         )
-        
-        # Drop untrained models
-        df = df[df['last_epoch_val_acc'].notna()]
-
-        # Sort by forecasted accuracy in descending order
-        self.history = df.sort_values('fcst_accuracy', ascending=False).reset_index(drop=True)
+        df['forecasted_val_acc'] = df['forecasted_val_acc'].fillna(0.0)
+        # Sort by forecasted accuracy descending
+        self.history = df.sort_values("forecasted_val_acc", ascending=False).reset_index(drop=True).copy()
 
         return self.history
+
 
     def run_generation(self,
                        X_train, y_train, X_val, y_val,
@@ -398,16 +428,14 @@ class Generation():
         # Generation is trained, and dropped
         self.train_generation(X_train, y_train)
         self.validate_generation(X_val, y_val)
-        self.forecast_generation(epoch_threshold=epoch_threshold)
+        self.forecast_generation(effort_threshold=epoch_threshold)
         self.score_individuals(baseline_metric=goal_metric)
         self.n_instances *= 2  # Increase instance budget for next generation
         self.n_instances = min(self.n_instances, len(X_train))
 
-
         self.get_worst_individuals(percentile_drop)
         self.drop_worst_individuals()
         self.build_new_models(self.search_space)
-
 
         return self.generation
     
@@ -447,4 +475,5 @@ class Generation():
             # Increase drop but limit to 50%
             percentile_drop = min(percentile_drop + 10, 50)
 
-
+        results = self.return_df()
+        print("EBE process completed.")
