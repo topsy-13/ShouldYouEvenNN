@@ -374,8 +374,10 @@ def create_model_from_row(row, input_size, output_size, task_type='classificatio
     optimizer_type = row.get('optimizer_type', 'adam')
     weight_decay = row.get('weight_decay', 0.0)
     momentum = row.get('momentum', None)
-    if np.isnan(momentum):
+    if momentum == 'None':
+        # Handle the None case
         momentum = None
+   
 
     # Skip connections
     use_skip = row.get('use_skip_connections', False)
