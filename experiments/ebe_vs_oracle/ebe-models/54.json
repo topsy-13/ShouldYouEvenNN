@@ -7,7 +7,7 @@
     "time_taken_in_ebe": 64.2603509426117,
     "percentile_drop": 15,
     "baseline_metric": 0.67414,
-    "max_test_acc": 0.8058823529411765,
+     
     "scoreboard": [
         {
             "hidden_layers": [

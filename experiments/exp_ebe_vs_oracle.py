@@ -102,7 +102,7 @@ def main(data_id=54, seed=13, naive_models=50,
     s_space = search_space.SearchSpace(input_size, output_size)
     # The generation is created given the search space and the number of individuals.
     nn_start_time = time.time()
-    generation = generations.Generation(s_space, N_INDIVIDUALS, starting_instances=500)
+    generation = generations.Generation(s_space, N_INDIVIDUALS, starting_instances=500, seed=SEED)
     generation.run_ebe(epochs=N_MAX_EPOCHS,
                     X_train=X_train,
                     y_train=y_train,
