@@ -5,11 +5,10 @@ import numpy as np
 import time
 
 def get_best_models(X, y, 
-                    n_models=30, 
-                    max_hpo_iterations=100, 
-                    timeout=60, 
+                    top_models=None, 
                     scoring_metric='accuracy',
-                    random_state=13):
+                    random_state=13, 
+                    **kwargs):
     
     # Convert X
     if isinstance(X, torch.Tensor):
@@ -28,17 +27,20 @@ def get_best_models(X, y,
         raise TypeError(f"Unsupported type for y: {type(y)}")
 
     naml = naiveautoml.NaiveAutoML(
-        timeout_candidate=timeout, 
-        max_hpo_iterations=max_hpo_iterations,
         scoring=scoring_metric, 
-        random_state=random_state
+        random_state=random_state,
+        **kwargs
     )
     naml.fit(X, y)
 
     scoreboard = naml.history
     # print(scoreboard)
 
-    scoreboard = scoreboard.sort_values(by=scoring_metric, ascending=False).head(n_models)
+    if top_models is None:
+        scoreboard = scoreboard.sort_values(by=scoring_metric, ascending=False)
+    else:
+        scoreboard = scoreboard.sort_values(by=scoring_metric, ascending=False).head(top_models)
+
     scoreboard = scoreboard[['pipeline', scoring_metric]]
     best_model = naml.chosen_model
 
@@ -58,15 +60,16 @@ def get_baseline_metric(scoreboard: pd.DataFrame, strategy: str='best'):
     return baseline_metrics
 
 
-def get_models_and_baseline_metric(X, y, n_models=10, 
-                                    max_hpo_iterations=100, timeout=60, 
+def get_models_and_baseline_metric(X, y, top_models=None, 
                                     scoring_metric='accuracy', random_state=13,
-                                    strategy='best'):
+                                    strategy='best',
+                                    **kwargs
+                                    ):
     # Start time
     start_time = time.time()
 
     # Get the best models
-    scoreboard, best_model = get_best_models(X, y, n_models, max_hpo_iterations, timeout, scoring_metric, random_state=random_state)
+    scoreboard, best_model = get_best_models(X, y, top_models=top_models, scoring_metric=scoring_metric, random_state=random_state, **kwargs)
     
     # Get the baseline metric
     baseline_metrics = get_baseline_metric(scoreboard, 
@@ -75,6 +78,10 @@ def get_models_and_baseline_metric(X, y, n_models=10,
     # End time
     end_time = time.time()
     elapsed_time = end_time - start_time
+    
+    # Filter out neural models
+    scoreboard['pipeline'] = scoreboard['pipeline'].astype(str)
+    scoreboard = scoreboard[~scoreboard['pipeline'].str.contains('MLP')]
 
     return baseline_metrics, elapsed_time, scoreboard, best_model
 
