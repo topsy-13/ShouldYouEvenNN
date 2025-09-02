@@ -36,7 +36,7 @@ def main(data_id, seed):
     )  
 
     # Export scoreboard as csv
-    export_path = f'./experiments/ebe_vs/naml_baseline-models/{exp_id}.csv'
+    export_path = f'./experiments/ebe_vs/naml_baseline-models/{exp_id}_NAML.csv'
     naml_scoreboard.to_csv(export_path)
 
     # Test the best non neural pipeline + model on the test set
@@ -62,7 +62,7 @@ def main(data_id, seed):
     print('Test performance acc:', accuracy)
 
     directory = f'experiments/ebe_vs/naml_baseline-models'
-    with open(os.path.join(directory, f"{exp_id}.json"), 'w') as json_file:
+    with open(os.path.join(directory, f"{exp_id}_NAML.json"), 'w') as json_file:
         json.dump(naml_results, json_file, indent=4)
         
 

@@ -42,7 +42,7 @@ def main(data_id=54, seed=13,
     # Get data from the json results of the Naive Experiment
     naml_path = f'./experiments/ebe_vs/naml_baseline-models'
 
-    with open(os.path.join(naml_path, f'{DATA_ID}_{SEED}.json')) as f:
+    with open(os.path.join(naml_path, f'{DATA_ID}_{SEED}_NAML.json')) as f:
         naml_results = json.load(f)
         naml_time_taken = naml_results["time_taken"]
         naml_max_test_acc = naml_results["test_accuracy_best_non_nn_model"]
@@ -167,17 +167,20 @@ def train_by_es(n_individuals, ebe_results, seed, data_id):
         es_metrics = model.es_train(train_loader=train_loader, val_loader=val_loader,
                     es_patience=100, # epochs without improvement
                     max_epochs=1000, # cap for epochs
-                    verbose=False, # print training progress
+                    verbose=False, # print training progress,
+                    return_lc=True
         )
         es_end_time = time.time()
         es_model_time = es_end_time - es_start_time 
 
-        es_train_loss, es_train_acc, es_val_loss, es_val_acc  = es_metrics
+        es_train_loss, es_train_acc, es_val_loss, es_val_acc, es_lc  = es_metrics
 
         model_row['es_train_loss'] = es_train_loss        
         model_row['es_val_loss'] = es_val_loss        
         model_row['es_train_acc'] = es_train_acc        
         model_row['es_val_acc'] = es_val_acc      
+        for key, value in es_lc.items():
+            model_row[key] = value  
 
         # Evaluate on test set
         es_test_loss, es_test_acc = model.evaluate(test_loader) 
@@ -201,7 +204,7 @@ def train_by_es(n_individuals, ebe_results, seed, data_id):
     # Export as json and dataframe
     export_path = './experiments/ebe_vs/ebe-models'
 
-    ebe_results.to_csv(f'{export_path}/{exp_id}_ES_EBE.csv', index=False)
+    es_results.to_csv(f'{export_path}/{exp_id}_ES_EBE.csv', index=False)
     with open(f"{export_path}/{exp_id}_ES_EBE-summary.json", 'w') as json_file:
         json.dump(ebe_performance, json_file, indent=4)
 

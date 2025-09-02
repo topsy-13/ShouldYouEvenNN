@@ -245,10 +245,10 @@ class DynamicNN(nn.Module):  # MLP
         # Learning curve tracking
         if return_lc:
             learning_curve = {
-                'train_loss': [],
-                'val_loss': [],
-                'train_acc': [],  # Will be empty for regression
-                'val_acc': []     # Will be empty for regression
+                'es_train_losses': [],
+                'es_val_losses': [],
+                'es_train_accs': [],  # Will be empty for regression
+                'es_val_accs': []     # Will be empty for regression
             }
         
         for epoch in range(1, max_epochs + 1):
@@ -283,11 +283,11 @@ class DynamicNN(nn.Module):  # MLP
 
             # Store learning curve data
             if return_lc:
-                learning_curve['train_loss'].append(train_loss)
-                learning_curve['val_loss'].append(val_loss)
+                learning_curve['es_train_losses'].append(train_loss)
+                learning_curve['es_val_losses'].append(val_loss)
                 if task_type == 'classification':
-                    learning_curve['train_acc'].append(train_acc)
-                    learning_curve['val_acc'].append(val_acc)
+                    learning_curve['es_train_accs'].append(train_acc)
+                    learning_curve['es_val_accs'].append(val_acc)
 
             # Choose metric for early stopping
             current_metric = val_acc if task_type == 'classification' else -val_loss

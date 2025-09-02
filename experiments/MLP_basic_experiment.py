@@ -55,7 +55,7 @@ def main(data_id, seed):
     mlp_results['test_acc'] = accuracy_score(y_test, y_pred_test)
     mlp_results['train_loss'] = mlp.loss_
 
-    mlp_path = f'./experiments/ebe_vs/standard_MLP'
+    mlp_path = f'./experiments/ebe_vs/standard_models/standard_MLP'
     with open(f"{mlp_path}/{exp_id}_MLP.json", 'w') as json_file:
         json.dump(mlp_results, json_file, indent=4)
     
