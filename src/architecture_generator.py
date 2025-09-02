@@ -4,6 +4,7 @@ import torch.optim as optim
 
 import copy
 import ast
+import pandas as pd
 
 class DynamicNN(nn.Module):  # MLP
     def __init__(self, input_size, output_size, 
@@ -365,12 +366,12 @@ import numpy as np
 def create_model_from_row(row, input_size, output_size, task_type='classification'):
 
     # Hidden layers
-    hidden_layers = row.get('hidden_layers', [128, 64])
+    hidden_layers = row.get('arch_hidden_layers', [128, 64])
     if isinstance(hidden_layers, str):
         hidden_layers = ast.literal_eval(hidden_layers)
 
     # Activation function
-    activation_raw = row.get('activation_fn', nn.ReLU)
+    activation_raw = row.get('arch_activation_fn', nn.ReLU)
     if isinstance(activation_raw, str):
         activation_name = activation_raw
     elif hasattr(activation_raw, '__name__'):
@@ -389,27 +390,26 @@ def create_model_from_row(row, input_size, output_size, task_type='classificatio
     activation_fn = activation_map.get(activation_name, nn.ReLU)
 
     # Dropout
-    dropout_rate = row.get('dropout_rate', 0.0)
+    dropout_rate = row.get('arch_dropout_rate', 0.0)
 
     # Optimizer and learning rate
-    lr = row.get('lr', 0.001)
-    optimizer_type = row.get('optimizer_type', 'adam')
-    weight_decay = row.get('weight_decay', 0.0)
-    momentum = row.get('momentum', None)
-    if momentum == 'None':
-        # Handle the None case
-        momentum = None
+    lr = row.get('arch_lr', 0.001)
+    optimizer_type = row.get('arch_optimizer_type', 'adam')
+    weight_decay = row.get('arch_weight_decay', 0.0)
+    momentum = None if pd.isna(row.get('arch_momentum', None)) else row['arch_momentum']
    
 
     # Skip connections
-    use_skip = row.get('use_skip_connections', False)
+    use_skip = row.get('arch_use_skip_connections', False)
 
     # Initializer
-    initializer = row.get('initializer', 'xavier_uniform')
+    initializer = row.get('arch_initializer', 'xavier_uniform')
 
     # LR Scheduler
-    lr_scheduler = row.get('lr_scheduler', 'none')
-    scheduler_params = row.get('scheduler_params', {})
+    lr_scheduler = row.get('arch_lr_scheduler', 'none')
+    scheduler_params = row.get('arch_scheduler_params', {})
+    if isinstance(scheduler_params, str):
+        scheduler_params = ast.literal_eval(scheduler_params)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

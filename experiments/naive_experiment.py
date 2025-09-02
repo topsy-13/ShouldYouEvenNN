@@ -25,12 +25,12 @@ def main(data_id, seed):
             return_as='tensor',
             task_type='classification'
             )
-    X_combined = torch.cat([X_train, X_val], dim=0)
-    y_combined = torch.cat([y_train, y_val], dim=0)
+    X_analysis = torch.cat([X_train, X_val], dim=0)
+    y_analysis = torch.cat([y_train, y_val], dim=0)
 
     print('Testing NaiveAutoML experiment...') 
     baseline_metric, time_taken, naml_scoreboard, best_naml_model = bm.get_models_and_baseline_metric(
-        X_combined, y_combined,
+        X_analysis, y_analysis,
         # n_models=NAIVE_MODELS, # commented because outputing all of the models
         random_state=seed,
     )  

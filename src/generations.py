@@ -20,6 +20,7 @@ from candidates import Candidate
 
 # region Generations
 class Generation():
+    
     def __init__(self, search_space, n_individuals,
                  starting_instances=100, seed=None,
                  task_type='classification'):
@@ -39,6 +40,7 @@ class Generation():
         
 
     def build_generation(self):
+
         generation = {}
         for i in range(self.n_individuals):
             architecture = self.search_space.sample_architecture(seed=i * self.seed)
@@ -53,6 +55,7 @@ class Generation():
     def train_generation(self, X_train, y_train, 
                          training_mode='oe', X_val=None, y_val=None, 
                          **kwargs):
+        
         active_individuals = self.generation.keys()
         for i in active_individuals:
             candidate = self.generation[i]
@@ -153,6 +156,8 @@ class Generation():
             child_architecture = self.crossover(parent1, parent2, 
                                                 seed=i*7 + self.seed)
             
+            child_architecture = self.mutate_architecture(child_architecture, mutation_rate=0.3)
+
             # Create a new model with the child architecture
             child_model = search_space.create_model(child_architecture, task_type=self.task_type)
 
@@ -228,19 +233,95 @@ class Generation():
 
         return child
     
+    def mutate_architecture(self, architecture, mutation_rate=0.3, seed=None):
+        """
+        Mutate a given architecture by tweaking hidden layers, batch size,
+        learning rate, or dropout. mutation_rate is the probability any key mutates.
+        """
+        if seed is None:
+            seed = random.randint(0, 100000)
+        set_seed(seed)
 
-    def get_worst_individuals(self, percentile_drop=15):
-        n_worst_individuals = max(1, int(self.n_individuals * percentile_drop / 100))  # Ensure at least 1
+        mutated = dict(architecture)  # copy
 
-        # Sort individuals by score (lower is worse)
-        sorted_generation = sorted(
-            self.generation.items(),
-            key=lambda x: x[1].metrics["score"],  # access via Candidate.metrics
-            reverse=False
-        )
+        # hidden_layers tweak
+        if 'hidden_layers' in mutated and random.random() < mutation_rate:
+            layers = mutated['hidden_layers'][:]
+            if layers and random.random() < 0.5:
+                # Add a new layer
+                layers.append(random.choice([32, 64, 128, 256]))
+            else:
+                # Perturb an existing one
+                idx = random.randrange(len(layers))
+                layers[idx] = max(4, int(layers[idx] * random.choice([0.5, 1.5])))
+            mutated['hidden_layers'] = layers
 
-        # Extract keys of the worst individuals
-        self.worst_individuals = [key for key, _ in sorted_generation[:n_worst_individuals]]
+        # learning rate tweak
+        if 'lr' in mutated and random.random() < mutation_rate:
+            mutated['lr'] = mutated['lr'] * random.choice([0.5, 1.5])
+
+        # dropout tweak
+        if 'dropout' in mutated and random.random() < mutation_rate:
+            mutated['dropout'] = min(max(0.0, mutated['dropout'] + random.uniform(-0.1, 0.1)), 0.7)
+
+        # batch size tweak
+        if 'batch_size' in mutated and random.random() < mutation_rate:
+            mutated['batch_size'] = int(max(8, mutated['batch_size'] * random.choice([0.5, 2])))
+
+        return mutated
+
+
+    def get_worst_individuals(self, percentile_drop=15, baseline_metric=None):
+        """
+        Identify worst individuals to drop.
+
+        Rules:
+        - If forecasts exist, drop those below baseline first.
+        - If no forecasts, rank by raw val_acc.
+        - Always preserve top 10% (elites).
+        """
+        if baseline_metric is not None:
+            self.score_individuals(baseline_metric)
+
+        n_worst = max(1, int(self.n_individuals * percentile_drop / 100))
+        elite_count = max(1, int(0.1 * self.n_individuals))  # preserve 10%
+
+        # Build list of candidates
+        candidates = []
+        for key, cand in self.generation.items():
+            val_acc = cand.get_metric('val', 'acc', last_only=True)
+            fcst_acc = cand.metrics.get("forecasted_val_acc", None)
+            score = cand.metrics.get("score", None)
+            candidates.append((key, val_acc, fcst_acc, score))
+
+        # Separate forecasted vs non-forecasted
+        with_fcst = [c for c in candidates if c[2] is not None]
+        without_fcst = [c for c in candidates if c[2] is None]
+
+        # Case 1: forecasts exist
+        if with_fcst:
+            below_baseline = [k for k, v, f, s in with_fcst if f < (baseline_metric or 0)]
+            sorted_all = sorted(candidates, key=lambda x: (x[3] if x[3] is not None else 0))
+        # Case 2: no forecasts → fallback to val_acc
+        else:
+            below_baseline = []
+            sorted_all = sorted(candidates, key=lambda x: (x[1] if x[1] is not None else 0))
+
+        # Identify elites (top 10% by val_acc)
+        elites = {k for k, v, f, s in sorted(candidates, key=lambda x: (x[1] or 0), reverse=True)[:elite_count]}
+
+        # Build worst list
+        worst = []
+        # Drop below-baseline first
+        for k in below_baseline:
+            if k not in elites and len(worst) < n_worst:
+                worst.append(k)
+        # Fill rest with lowest scorers
+        for k, v, f, s in sorted_all:
+            if k not in elites and k not in worst and len(worst) < n_worst:
+                worst.append(k)
+
+        self.worst_individuals = worst
 
 
     def drop_worst_individuals(self):
@@ -271,8 +352,18 @@ class Generation():
             val_accs = candidate.get_metric('val', 'acc')
 
             if candidate.epochs_trained >= effort_threshold and len(val_accs) >= effort_threshold:
+                # Existing rational forecast
                 forecasted_accuracy = forecast_accuracy(efforts, val_accs, model_type='rational')
+                
+                # New lightweight extras
+                slope = (val_accs[-1] - val_accs[0]) / max(1e-6, efforts[-1] - efforts[0])
+                variance = float(np.var(val_accs))
+                last_gap = val_accs[-1] - np.mean(val_accs[:-1]) if len(val_accs) > 1 else 0.0
+
                 candidate.metrics["forecasted_val_acc"] = forecasted_accuracy
+                candidate.metrics["slope_val_acc"] = slope
+                candidate.metrics["var_val_acc"] = variance
+                candidate.metrics["gap_val_acc"] = last_gap
             else: 
                 pass  # Not enough data to forecast
     
@@ -291,20 +382,25 @@ class Generation():
         active_individuals = self.generation.keys()
         for i in active_individuals:
             candidate = self.generation[i]
-            # ? TODO: use the baseline metric to drop models 
-            # get the last validation accuracy and the forecasted
-            last_val_acc = candidate.get_metric('val', 'acc', last_only=True)
-            last_fcst_acc = candidate.get_metric("forecasted_val_acc")
-            if last_fcst_acc is None:
-                last_fcst_acc = 0.0
+            last_val_acc = candidate.get_metric('val', 'acc', last_only=True) or 0.0
+            last_fcst_acc = candidate.get_metric("forecasted_val_acc") or 0.0
+            slope = candidate.metrics.get("slope_val_acc", 0.0)
+            variance = candidate.metrics.get("var_val_acc", 0.0)
+            gap = candidate.metrics.get("gap_val_acc", 0.0)
 
-            fcst_gain = last_fcst_acc - baseline_metric
-            candidate.log_metric('forecast_gain', value=fcst_gain)
+            if last_fcst_acc < baseline_metric:
+                # Below baseline → check momentum
+                if slope > 0.01 and gap > 0:  # improving fast enough
+                    score = 0.3 * last_val_acc + 0.5 * last_fcst_acc + 0.2 * slope
+                else:
+                    score = max(last_val_acc, 0.0)
+            else:
+                # Beating baseline forecast
+                fcst_gain = last_fcst_acc - baseline_metric
+                score = 0.6 * last_fcst_acc + 0.3 * fcst_gain + 0.1 * slope
 
-            # * Playground for later
-            # score models by how much higher their forecast is compared to the baseline:
-            score = max(0.6 * last_val_acc + 0.4 * fcst_gain, 0)
             candidate.log_metric('score', value=score)
+
 
 
     def get_best_model(self, n_candidate=0):
@@ -314,47 +410,6 @@ class Generation():
         # Get the n-th best model
         nth_best_individual = sorted_generation[n_candidate][0]
         return self.generation[nth_best_individual].model
-
-
-    # def build_df(self):
-        
-    #     records = []    
-    #     for i, candidate in self.generation.items():
-    #         # Start from architecture dict
-    #         base = dict(candidate.architecture)
-    #         metrics = candidate.metrics
-
-    #         base.update({
-    #             "id": candidate.id,
-    #             "batch_size": candidate.batch_size,
-    #             "n_instances": candidate.n_instances,
-    #             "efforts": candidate.efforts,
-    #             "train_loss": metrics["train"]["loss"],
-    #             "train_acc": metrics["train"]["acc"],
-    #             "val_loss": metrics["val"]["loss"],
-    #             "val_acc": metrics["val"]["acc"],
-    #             "test_loss": metrics["test"]["loss"],
-    #             "test_acc": metrics["test"]["acc"],
-    #             "forecasted_val_acc": metrics.get("forecasted_val_acc", 0.0),
-    #             "fcst_greater_than_baseline": metrics.get("fcst_greater_than_baseline", False),
-    #             # Include es_results if present, else None
-    #             "es_results": metrics.get("es_results", None)
-    #         })
-    #         records.append(base)
-
-    #     df = pd.DataFrame.from_records(records)
-
-    #     # Add last epoch metrics
-    #     df['last_epoch_val_acc'] = df['val_acc'].apply(
-    #         lambda x: x[-1] if isinstance(x, list) and len(x) > 0 else np.nan)
-    #     df['last_epoch_val_loss'] = df['val_loss'].apply(
-    #         lambda x: x[-1] if isinstance(x, list) and len(x) > 0 else np.nan
-    #     )
-    #     df['forecasted_val_acc'] = df['forecasted_val_acc'].fillna(0.0)
-    #     # Sort by forecasted accuracy descending
-    #     self.history = df.sort_values("forecasted_val_acc", ascending=False).reset_index(drop=True).copy()
-
-    #     return self.history
 
 
     def run_generation(self,
@@ -387,7 +442,8 @@ class Generation():
 
     def run_ebe(self,
             X_train, y_train, X_val, y_val,
-            percentile_drop=25, epochs=50, baseline_metric=None,
+            percentile_drop=25, max_epochs=200, 
+            baseline_metric=None,
             time_budget=60, epoch_threshold=3, 
             track_all_models=False):
 
@@ -398,8 +454,7 @@ class Generation():
         self.epoch_threshold = epoch_threshold
         start_time = time.time()
         
-        for epoch in range(epochs):
-            print('Built models:',self.individuals_created)
+        for epoch in range(max_epochs):
             current_time = time.time()
             elapsed_time = current_time - start_time
 
@@ -411,7 +466,7 @@ class Generation():
                     break
                 break
 
-            print(f"Epoch {epoch + 1}/{epochs}")
+            print(f"Epoch {epoch + 1}")
 
             # Run one evolutionary generation
             self.generation = self.run_generation(
@@ -441,7 +496,7 @@ class Generation():
             current_candidates.append(candidate.build_dict())           
         
         if export_as == 'pandas':
-            df = pd.DataFrame(current_candidates).sort_values(by='forecasted_val_acc', ascending=False)
+            df = pd.DataFrame(current_candidates).sort_values(by='score', ascending=False)
             return df.copy(deep=True)
         elif export_as == 'json':
             return json.dumps(current_candidates, indent=4)

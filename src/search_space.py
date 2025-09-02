@@ -12,7 +12,7 @@ from utils import set_seed
 class SearchSpace():
     
     def __init__(self, input_size, output_size,
-                 min_layers=2, max_layers=50, 
+                 min_layers=2, max_layers=100, 
                  min_neurons=3, max_neurons=500,
                  activation_fns=[nn.ReLU, nn.LeakyReLU, nn.Sigmoid, nn.Tanh, nn.ELU, nn.GELU],
                  dropout_rates=[0, 0.1, 0.2, 0.3, 0.4, 0.5],
