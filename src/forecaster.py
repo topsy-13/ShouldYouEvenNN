@@ -61,3 +61,28 @@ def forecast_accuracy(efforts, accuracies, max_effort=300, model_type='rational'
         raise ValueError(f"Unsupported model_type: {model_type}")
 
     return float(np.clip(forecast, 0.0, 1.0))
+
+
+def forecast_generation(candidates, effort_threshold=3):
+    
+    active_individuals = candidates.keys()
+    for i in active_individuals:
+        candidate = candidates[i]
+        efforts = candidate.efforts
+        val_accs = candidate.get_metric('val', 'acc')
+
+        if candidate.epochs_trained >= effort_threshold and len(val_accs) >= effort_threshold:
+            # Existing rational forecast
+            forecasted_accuracy = forecast_accuracy(efforts, val_accs, model_type='rational')
+            
+            # New lightweight extras
+            slope = (val_accs[-1] - val_accs[0]) / max(1e-6, efforts[-1] - efforts[0])
+            variance = float(np.var(val_accs))
+            last_gap = val_accs[-1] - np.mean(val_accs[:-1]) if len(val_accs) > 1 else 0.0
+
+            candidate.metrics["forecasted_val_acc"] = forecasted_accuracy
+            candidate.metrics["slope_val_acc"] = slope
+            candidate.metrics["var_val_acc"] = variance
+            candidate.metrics["gap_val_acc"] = last_gap
+        else: 
+            pass  # Not enough data to forecast

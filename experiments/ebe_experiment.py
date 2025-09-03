@@ -8,12 +8,12 @@ import time
 
 sys.path.append(os.path.abspath("./src"))
 
-import generations
 import search_space
 import data_preprocessing as dp
 import baseline_models as bm
 
 from instance_sampling import create_dataloaders
+from ebe import Population
 # endregion
 
 
@@ -57,11 +57,11 @@ def main(data_id=54, seed=13,
     starting_instances = int(len(X_train) 
                              * starting_instances_proportion)
     ebe_start_time = time.time()
-    generation = generations.Generation(s_space, N_INDIVIDUALS,
+    population = Population(s_space, N_INDIVIDUALS,
                                         starting_instances=starting_instances)
     
     time_budget_ebe = naml_time_taken * BUDGET_FACTOR
-    ebe_results_final = generation.run_ebe(
+    ebe_results_final = population.run_ebe(
                         X_train=X_train,
                         y_train=y_train,
                         X_val=X_val,
@@ -76,7 +76,7 @@ def main(data_id=54, seed=13,
     ebe_end_time = time.time()
     ebe_time_taken = ebe_end_time - ebe_start_time
     # Reporting section
-    ebe_results_all = generation.cumulative_snapshot
+    ebe_results_all = population.cumulative_ledger
 
     n_candidates_higher_fcsted = len(ebe_results_all
                                    [ebe_results_all['fcst_greater_than_baseline'] 
