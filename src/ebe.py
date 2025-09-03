@@ -251,7 +251,7 @@ class Population():
 
         print("EBE process completed.")
 
-        return self.cumulative_ledger  # return the latest by default
+        return self.current_snapshot  # return the latest by default
 
 
 
