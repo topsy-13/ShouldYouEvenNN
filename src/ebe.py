@@ -7,7 +7,7 @@ import torch.optim as optim
 import pandas as pd
 import gc
 import data_preprocessing as dp
-from instance_sampling import sample_data, create_dataloaders
+from instance_sampling import sample_data
 
 import time
 import json
@@ -70,14 +70,17 @@ class Population():
             dataset_fraction = n_instances / len(X_train)
             
             # Set seed for reproducibility
-            set_seed(seed)
+            g, seed_worker = set_seed(seed)
             # Sample data based on the instance budget
             X_sampled, y_sampled = sample_data(X_train, y_train, 
                                                n_instances, mode="absolute")
             # Create a DataLoader with the architecture-specific batch size
-            train_loader = create_dataloaders(X=X_sampled, y=y_sampled, 
-                                              batch_size=batch_size)
-
+            train_loader = dp.create_dataloader(X=X_sampled, 
+                                                y=y_sampled, 
+                       batch_size=batch_size, 
+                       generator=g, 
+                       seed_worker=seed_worker)
+            
             # Train the model
             if training_mode == 'oe':
                 train_loss, train_acc = model.oe_train(train_loader)
@@ -93,7 +96,11 @@ class Population():
                 print(f'Training individual {i+1}/{self.size} with Early Stopping...')
                 assert X_val is not None and y_val is not None, "X_val and y_val must be provided for early stopping training."
 
-                val_loader = create_dataloaders(X=X_val, y=y_val, batch_size=batch_size)
+                val_loader = dp.create_dataloader(X=X_val, 
+                                                y=y_val, 
+                       batch_size=batch_size, 
+                       generator=g, 
+                       seed_worker=seed_worker)
                 es_results = model.es_train(train_loader, val_loader, **kwargs)
                 # Unpack results
                 best_train_loss, best_train_acc, best_val_loss, best_val_acc, learning_curve = es_results
@@ -115,10 +122,14 @@ class Population():
             model = candidate.model
             batch_size = candidate.batch_size
             seed = candidate.architecture.get("seed", None)
-            set_seed(seed)
+            g, seed_worker = set_seed(seed)
             
             # Create a DataLoader with the architecture-specific batch size
-            val_loader = create_dataloaders(X=X_val, y=y_val, batch_size=batch_size)
+            val_loader = dp.create_dataloader(X=X_val, 
+                                                y=y_val, 
+                       batch_size=batch_size, 
+                       generator=g, 
+                       seed_worker=seed_worker)
             val_loss, val_acc = model.evaluate(val_loader)
 
             candidate.log_metric(metric, 'loss', val_loss)
@@ -132,6 +143,9 @@ class Population():
         n_new_models = self.max_individuals - self.size
         n_basic_models = int(n_new_models * 0.5)  # 50% of the new models will be basic
         n_advanced_models = n_new_models - n_basic_models  # The rest will be evolutions
+
+        # print('Current size:', self.size)
+        print('Models eliminated and new being created:', n_new_models)
 
         new_generation = {}
         for i in range(n_basic_models):
@@ -181,7 +195,7 @@ class Population():
 
     def run_generation(self,
                        X_train, y_train, X_val, y_val,
-                       percentile_drop=25, goal_metric=None,
+                       percentile_drop=5, goal_metric=None,
                        epoch_threshold=3, track_all_models=False):
 
 
@@ -202,7 +216,9 @@ class Population():
                 # .reset_index(drop=True)
             )
             
-        get_worst_individuals(self, percentile_drop)
+        get_worst_individuals(self, 
+                              baseline_metric=goal_metric,
+                              percentile_drop=percentile_drop)
         self.drop_worst_individuals()
 
         return self.candidates
@@ -210,7 +226,7 @@ class Population():
 
     def run_ebe(self,
             X_train, y_train, X_val, y_val,
-            percentile_drop=25, max_epochs=200, 
+            percentile_drop=10, max_epochs=200, 
             baseline_metric=None,
             time_budget=60, epoch_threshold=3, 
             track_all_models=False):
@@ -247,13 +263,11 @@ class Population():
             )
 
             # Increase drop but cap at 50%
-            percentile_drop = min(percentile_drop + 10, 50)
+            percentile_drop = min(percentile_drop + 5, 40)
 
         print("EBE process completed.")
 
         return self.current_snapshot  # return the latest by default
-
-
 
 
     def build_ledger(self, export_as='pandas'):
