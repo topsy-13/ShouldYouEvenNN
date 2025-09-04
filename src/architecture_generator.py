@@ -16,8 +16,9 @@ class DynamicNN(nn.Module):  # MLP
                  initializer='xavier_uniform', lr_scheduler='none',
                  scheduler_params={},
                  device=None,
-                 task_type='classification',
-                 seed=None):
+                 task_type='classification'
+                 ):
+        
         super(DynamicNN, self).__init__()
 
         self.device = device if device is not None else torch.device("cuda" if torch.cuda.is_available() else "cpu")

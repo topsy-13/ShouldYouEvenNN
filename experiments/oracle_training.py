@@ -19,7 +19,6 @@ from utils import set_seed
 # region Oracle Training
 def main(
          data_id=54, seed=13, 
-         n_individuals=100, 
          n_max_epochs=1000,
          es_patience=150):
 
@@ -61,6 +60,8 @@ def main(
         model_seed = int(model_row.get('arch_seed', None))
         model_batch_size = int(model_row.get('batch_size', None))
         
+        # Set seed for reproducibility
+        set_seed(model_seed)
         train_loader = create_dataloaders(X=X_train, y=y_train, 
                             batch_size=model_batch_size)
         val_loader = create_dataloaders(X=X_val, y=y_val, 
@@ -70,8 +71,6 @@ def main(
         
         model = create_model_from_row(model_row, input_size, output_size)
 
-        # Set seed for reproducibility
-        set_seed(model_seed)
 
         # Train the model
         train_start = time.time()
@@ -79,15 +78,17 @@ def main(
                     es_patience=ES_PATIENCE, # epochs without improvement
                     max_epochs=N_MAX_EPOCHS, # cap for epochs
                     verbose=False, # print training progress
+                    return_lc=True
         )
         train_time = time.time() - train_start
-        train_loss, train_acc, val_loss, val_acc  = es_metrics
+        train_loss, train_acc, val_loss, val_acc, lc  = es_metrics
         # Record the results
         model_row['es_train_loss'] = train_loss        
         model_row['es_val_loss'] = val_loss        
         model_row['es_train_acc'] = train_acc        
         model_row['es_val_acc'] = val_acc  
         model_row['es_time'] = train_time
+        model_row['es_lc'] = lc
 
         # Evaluate on test set
         es_test_loss, es_test_acc = model.evaluate(test_loader) 
@@ -117,7 +118,8 @@ def main(
 # endregion
 if __name__ == "__main__":
     main(data_id=54, seed=13)
-    
+    time.sleep(30)
+    os.system("shutdown /s /t 1")
 
 
     # TODO: Check replicability

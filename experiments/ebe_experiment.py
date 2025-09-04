@@ -12,7 +12,6 @@ import search_space
 import data_preprocessing as dp
 import baseline_models as bm
 
-from instance_sampling import create_dataloaders
 from ebe import Population
 # endregion
 
@@ -20,7 +19,7 @@ from ebe import Population
 def main(data_id=54, seed=13,
          n_individuals=100, 
          starting_instances_proportion=0.1,
-         percentile_drop=15,
+         percentile_drop=10,
          time_budget_factor=3):
     
     # region Set the scenario
@@ -51,14 +50,17 @@ def main(data_id=54, seed=13,
     # enregion
     # region EBE
     input_size, output_size = dp.get_tensor_sizes(X_train, y_train)
-    s_space = search_space.SearchSpace(input_size=input_size, output_size=output_size)
+    s_space = search_space.SearchSpace(input_size=input_size, 
+                                       output_size=output_size)
 
     ''' By default and to test the true potential of the new instance budget method, a starting number of instances is defined for the experiment'''
     starting_instances = int(len(X_train) 
                              * starting_instances_proportion)
     ebe_start_time = time.time()
-    population = Population(s_space, N_INDIVIDUALS,
-                                        starting_instances=starting_instances)
+    population = Population(s_space, 
+                            size=N_INDIVIDUALS,
+                            starting_instances=starting_instances,
+                            seed=SEED)
     
     time_budget_ebe = naml_time_taken * BUDGET_FACTOR
     ebe_results_final = population.run_ebe(
@@ -70,7 +72,7 @@ def main(data_id=54, seed=13,
                         baseline_metric=naml_max_test_acc, 
                         time_budget=time_budget_ebe,
                         epoch_threshold=3,
-                        track_all_models=True
+                        track_all_models=True,
                         
                         )
     ebe_end_time = time.time()
@@ -91,6 +93,7 @@ def main(data_id=54, seed=13,
         'time_budget': time_budget_ebe,
         'time_taken': ebe_time_taken,
         'naml_baseline_metric': naml_max_test_acc,
+        'candidates_created': population.individuals_created,
         'n_above_baseline_fcst': n_candidates_higher_fcsted,
         'max_ebe_train_acc': max_ebe_train_acc,
         'max_ebe_val_acc': max_ebe_val_acc
@@ -148,24 +151,22 @@ def train_by_es(n_individuals, ebe_results, seed, data_id):
 
         model_seed = int(model_row.get('arch_seed', None))
         model_batch_size = int(model_row.get('batch_size', None))
+        g, seed_worker = set_seed(model_seed)
         # print('Batch_Size:',model_batch_size)
         
-        train_loader = create_dataloaders(X=X_train, y=y_train, 
-                            batch_size=model_batch_size)
-        val_loader = create_dataloaders(X=X_val, y=y_val, 
-                            batch_size=model_batch_size)
-        test_loader = create_dataloaders(X=X_test, y=y_test, 
-                            batch_size=model_batch_size)
+        train_loader = dp.create_dataloader(X=X_train, y=y_train, 
+                       batch_size=model_batch_size, generator=g, seed_worker=seed_worker)
+        val_loader = dp.create_dataloader(X=X_val, y=y_val, 
+                            batch_size=model_batch_size, generator=g, seed_worker=seed_worker)
+        test_loader = dp.create_dataloader(X=X_test, y=y_test, 
+                            batch_size=model_batch_size, generator=g, seed_worker=seed_worker)
 
         model = create_model_from_row(model_row, input_size, output_size)
-
-        # Set seed for reproducibility
-        set_seed(model_seed)
 
         es_start_time = time.time()
         # Train the model
         es_metrics = model.es_train(train_loader=train_loader, val_loader=val_loader,
-                    es_patience=100, # epochs without improvement
+                    es_patience=150, # epochs without improvement
                     max_epochs=1000, # cap for epochs
                     verbose=False, # print training progress,
                     return_lc=True
@@ -212,7 +213,7 @@ def train_by_es(n_individuals, ebe_results, seed, data_id):
 
     # endregion
 if __name__ == "__main__":
-    ebe_performance, ebe_results_all, ebe_results_final = main(data_id=54, seed=13, n_individuals=100, starting_instances_proportion=0.1, time_budget_factor=3, percentile_drop=15)
+    ebe_performance, ebe_results_all, ebe_results_final = main(data_id=54, seed=13, n_individuals=100, starting_instances_proportion=0.1, time_budget_factor=3, percentile_drop=5)
 
     train_by_es(data_id=54, seed=13,
         n_individuals=100, 

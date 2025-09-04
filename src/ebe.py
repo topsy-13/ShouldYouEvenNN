@@ -37,6 +37,7 @@ class Population():
         self.individuals_created = 0
         self.candidates = self.spawn_candidates()
         self.initial_ledger = self.build_ledger().copy(deep=True)
+        self.generations_completed = 0
         
 
     def spawn_candidates(self):
@@ -73,7 +74,7 @@ class Population():
             g, seed_worker = set_seed(seed)
             # Sample data based on the instance budget
             X_sampled, y_sampled = sample_data(X_train, y_train, 
-                                               n_instances, mode="absolute")
+                                               n_instances, mode="absolute", seed=seed)
             # Create a DataLoader with the architecture-specific batch size
             train_loader = dp.create_dataloader(X=X_sampled, 
                                                 y=y_sampled, 
@@ -149,7 +150,7 @@ class Population():
 
         new_generation = {}
         for i in range(n_basic_models):
-            architecture = search_space.sample_architecture(seed=i*5 + self.seed)
+            architecture = search_space.sample_architecture(seed=i*self.generations_completed + self.seed)
             model = search_space.create_model(architecture, task_type=self.task_type)
             new_generation[self.individuals_created] = Candidate(model=model, 
                                                       architecture=architecture, 
@@ -160,7 +161,7 @@ class Population():
         # Crossover + Mutations
         for i in range(n_advanced_models):
             # Build the child model and architecture
-            child_architecture = breed_and_mutate(candidates=self.candidates, seed=i)
+            child_architecture = breed_and_mutate(candidates=self.candidates, seed=i*self.generations_completed + self.seed)
             child_model = search_space.create_model(child_architecture, 
                                                     task_type=self.task_type)
             # Add the child model to the generation
@@ -264,7 +265,8 @@ class Population():
 
             # Increase drop but cap at 50%
             percentile_drop = min(percentile_drop + 5, 40)
-
+        
+            self.generations_completed += 1
         print("EBE process completed.")
 
         return self.current_snapshot  # return the latest by default

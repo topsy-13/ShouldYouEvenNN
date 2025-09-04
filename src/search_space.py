@@ -12,7 +12,7 @@ from utils import set_seed
 class SearchSpace():
     
     def __init__(self, input_size, output_size,
-                 min_layers=2, max_layers=100, 
+                 min_layers=2, max_layers=50, 
                  min_neurons=3, max_neurons=500,
                  activation_fns=[nn.ReLU, nn.LeakyReLU, nn.Sigmoid, nn.Tanh, nn.ELU, nn.GELU],
                  dropout_rates=[0, 0.1, 0.2, 0.3, 0.4, 0.5],
@@ -23,7 +23,8 @@ class SearchSpace():
                  layer_norm_options=[True, False],
                  skip_connection_options=[True, False],
                  initializers=['xavier_uniform', 'xavier_normal', 'kaiming_uniform', 'kaiming_normal'],
-                 lr_schedulers=['step', 'exponential', 'cosine', 'none']):
+                 lr_schedulers=['step', 'exponential', 'cosine', 'none'],
+                 arch_shapes=["constant", "pyramid", "inv_pyramid", "hourglass", "triangular", "irregular"]):
 
         # Store parameters    
         self.input_size = input_size
@@ -32,6 +33,7 @@ class SearchSpace():
 
         self.layers = [min_layers, max_layers]
         self.neurons = [min_neurons, max_neurons]
+        self.arch_shapes = arch_shapes
         self.activation_fns = activation_fns
         
         # Store log bounds for learning rate
@@ -56,6 +58,31 @@ class SearchSpace():
             power *= 2
 
 
+    def _generate_hidden_layers(self, shape, depth):
+        min_w, max_w = self.neurons
+        if shape == "constant":
+            width = random.randint(min_w, max_w)
+            return [width] * depth
+        elif shape == "pyramid":
+            return sorted([random.randint(min_w, max_w) for _ in range(depth)], reverse=True)
+        elif shape == "inv_pyramid":
+            return sorted([random.randint(min_w, max_w) for _ in range(depth)])
+        elif shape == "hourglass":
+            half = depth // 2
+            down = sorted([random.randint(min_w, max_w) for _ in range(half+1)], reverse=True)
+            up = down[:-1][::-1] if depth % 2 == 0 else down[::-1]
+            return down + up
+        elif shape == "triangular":
+            if random.random() < 0.5:  # grow
+                return sorted([random.randint(min_w, max_w) for _ in range(depth)])
+            else:  # shrink
+                return sorted([random.randint(min_w, max_w) for _ in range(depth)], reverse=True)
+        elif shape == "irregular":
+            return [random.randint(min_w, max_w) for _ in range(depth)]
+        else:
+            raise ValueError(f"Unknown shape: {shape}")
+
+
     def sample_architecture(self, seed=None):
         # Set seed for reproducibility
         if seed is None:
@@ -63,8 +90,10 @@ class SearchSpace():
 
         set_seed(seed)
 
-        hidden_layers = random.choices(range(self.neurons[0], self.neurons[1]), 
-                                       k=random.randint(self.layers[0], self.layers[1]))
+        depth = random.randint(self.layers[0], self.layers[1])
+        shape = random.choice(self.arch_shapes)
+        hidden_layers = self._generate_hidden_layers(shape, depth)
+
         activation_fn = random.choice(self.activation_fns)
         dropout_rate = random.choice(self.dropout_rates)
         optimizer_type = random.choice(self.optimizers)
@@ -96,6 +125,8 @@ class SearchSpace():
         
         return {
             'hidden_layers': hidden_layers,
+            'shape': shape,
+            'depth': depth,
             'activation_fn': activation_fn,
             'dropout_rate': dropout_rate,
             'optimizer_type': optimizer_type,
@@ -110,16 +141,15 @@ class SearchSpace():
             'seed':seed
         }
 
+
     def create_model(self, architecture, task_type='classification'):
         hidden_layers = architecture["hidden_layers"]
         activation_fn = architecture["activation_fn"]
         dropout_rate = architecture["dropout_rate"]
         optimizer_type = architecture["optimizer_type"]
         learning_rate = architecture["learning_rate"]
-        self.batch_size = architecture["batch_size"]  #* extract the batch size for dataloader, unused
+        self.batch_size = architecture["batch_size"]  #* extract the batch size for dataloader
 
-        # extrtact seed and set it
-        seed = architecture.get("seed", None)
 
         # Extract new parameters with defaults if not present (for backward compatibility)
         weight_decay = architecture.get("weight_decay", 0)
@@ -141,8 +171,7 @@ class SearchSpace():
             lr_scheduler=lr_scheduler,
             scheduler_params=scheduler_params,
             device=self.device,
-            task_type=task_type,
-            seed=seed
+            task_type=task_type
         ).to(self.device)
         
         return model

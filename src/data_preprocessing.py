@@ -143,15 +143,6 @@ def get_preprocessed_data(dataset_id=334, scaling=True, scaler_type='standard',
     print(f'y_training data shape: {y_train.shape}')
     return X_train, y_train, X_val, y_val, X_test, y_test
 
-def create_dataset_and_loader(X, y, batch_size, shuffle=True):
-    """
-    Creates a TensorDataset from X and y tensors and wraps it in a DataLoader.
-    """
-    # Create the TensorDataset
-    dataset = TensorDataset(X, y)
-
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
-    return dataset, loader
 
 
 def get_tensor_sizes(X_train, y_train, task_type='classification'):
@@ -192,17 +183,36 @@ def get_tensor_sizes(X_train, y_train, task_type='classification'):
     return input_size, output_size
 
 
-def create_dataloaders(X, y, 
-                       batch_size,
-                       return_as='loaders'):
+from torch.utils.data import TensorDataset, DataLoader
 
-    # Create DataLoaders
-    dataset, dataloader = create_dataset_and_loader(X, y,
-                                                       batch_size=batch_size)
-    if return_as == 'loaders':
-        return dataloader
-    else: 
-        return dataset
+def create_dataloader(X, y, batch_size, generator, seed_worker, 
+                      shuffle=True):
+    """
+    Wrap (X, y) tensors into a reproducible DataLoader.
+    
+    Args:
+        X (Tensor): Features.
+        y (Tensor): Labels.
+        batch_size (int): Mini-batch size.
+        generator (torch.Generator): From set_seed().
+        seed_worker (callable): From set_seed().
+        shuffle (bool): Whether to shuffle the dataset.
+    
+    Returns:
+        DataLoader
+    """
+    dataset = TensorDataset(X, y)
+    
+    loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        generator=generator,
+        worker_init_fn=seed_worker,
+    )
+    
+    return loader
+
     
 
 # endregion

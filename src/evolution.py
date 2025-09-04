@@ -99,6 +99,8 @@ def mutate_architecture(architecture, mutation_rate=0.3, seed=None):
     if 'batch_size' in mutated and random.random() < mutation_rate:
         mutated['batch_size'] = int(max(8, mutated['batch_size'] * random.choice([0.5, 2])))
 
+    # Rename the architecture shape to mutated
+    mutated['shape'] = 'mutated'
     return mutated
 
 
