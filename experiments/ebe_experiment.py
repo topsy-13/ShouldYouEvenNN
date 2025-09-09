@@ -16,7 +16,7 @@ from ebe import Population
 # endregion
 
 
-def main(data_id=54, seed=13,
+def main(data_id=54, seed=12,
          n_individuals=100, 
          starting_instances_proportion=0.1,
          percentile_drop=10,
@@ -71,9 +71,10 @@ def main(data_id=54, seed=13,
                         percentile_drop=percentile_drop,
                         baseline_metric=naml_max_test_acc, 
                         time_budget=time_budget_ebe,
-                        epoch_threshold=3,
+                        epoch_threshold=5,
                         track_all_models=True,
-                        
+                        forecast_method='rational'
+                    
                         )
     ebe_end_time = time.time()
     ebe_time_taken = ebe_end_time - ebe_start_time
@@ -129,7 +130,7 @@ def train_by_es(n_individuals, ebe_results, seed, data_id):
         task_type='classification'
         )
     input_size, output_size = dp.get_tensor_sizes(X_train, y_train)
-
+    print(' -Testing EBE final models by ES')
     ebe_results = ebe_results.copy()
     # Train the best models identified by EBE (and pray)
     N_TOP_MODELS_TO_TRAIN = int(N_INDIVIDUALS * 0.2) # * 20 percentile of models to return 
@@ -144,8 +145,8 @@ def train_by_es(n_individuals, ebe_results, seed, data_id):
     es_results = []
     es_total_time = 0
     for n_model, model_id in enumerate(top_model_ids):
-        print('Training model by ES', n_model + 1, 
-              'of', N_TOP_MODELS_TO_TRAIN)
+        # print('Training model by ES', n_model + 1, 
+        #       'of', N_TOP_MODELS_TO_TRAIN)
         # Build from 0 the model
         model_row = ebe_results[ebe_results['id'] == model_id].iloc[0].copy()
 
@@ -209,13 +210,22 @@ def train_by_es(n_individuals, ebe_results, seed, data_id):
     with open(f"{export_path}/{exp_id}_ES_EBE-summary.json", 'w') as json_file:
         json.dump(ebe_performance, json_file, indent=4)
 
+
     return ebe_performance
 
-    # endregion
-if __name__ == "__main__":
-    ebe_performance, ebe_results_all, ebe_results_final = main(data_id=54, seed=13, n_individuals=100, starting_instances_proportion=0.1, time_budget_factor=3, percentile_drop=5)
 
-    train_by_es(data_id=54, seed=13,
-        n_individuals=100, 
+def ebe_main(data_id, seed):
+    ebe_performance, ebe_results_all, ebe_results_final = main(data_id=data_id, seed=seed, 
+    n_individuals=130, starting_instances_proportion=0.1, time_budget_factor=3, percentile_drop=15)
+    print('  -EBE Results Exported')
+    
+    train_by_es(data_id=data_id, seed=seed,
+        n_individuals=130, 
         ebe_results=ebe_results_final)
+    print('  -EBE-ES Results Exported')
+    
+    # endregion
+
+if __name__ == "__main__":
+    ebe_main(data_id=54, seed=13)
 

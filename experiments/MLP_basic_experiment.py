@@ -59,7 +59,7 @@ def main(data_id, seed):
     with open(f"{mlp_path}/{exp_id}_MLP.json", 'w') as json_file:
         json.dump(mlp_results, json_file, indent=4)
     
-    print('MLP results exported')
+    print('  -MLP results exported')
 
 
 if __name__ == "__main__":

@@ -197,14 +197,15 @@ class Population():
     def run_generation(self,
                        X_train, y_train, X_val, y_val,
                        percentile_drop=5, goal_metric=None,
-                       epoch_threshold=3, track_all_models=False):
+                       epoch_threshold=5, forecast_method='rational',
+                       track_all_models=False):
 
 
         self.spawn_new_candidates(self.search_space)
         # Generation is trained, and dropped
         self.train_generation(X_train, y_train)
         self.validate_generation(X_val, y_val)
-        forecast_generation(self.candidates, effort_threshold=epoch_threshold)
+        forecast_generation(self.candidates, effort_threshold=epoch_threshold, method=forecast_method)
         score_individuals(self.candidates, baseline_metric=goal_metric)
         self.current_snapshot = self.build_ledger()
 
@@ -229,7 +230,8 @@ class Population():
             X_train, y_train, X_val, y_val,
             percentile_drop=10, max_epochs=200, 
             baseline_metric=None,
-            time_budget=60, epoch_threshold=3, 
+            time_budget=60, epoch_threshold=4, 
+            forecast_method='linear',
             track_all_models=False):
 
         # Snapshots: baseline vs evolving
@@ -260,11 +262,12 @@ class Population():
                 percentile_drop=percentile_drop,
                 goal_metric=baseline_metric,
                 epoch_threshold=epoch_threshold,
+                forecast_method=forecast_method,
                 track_all_models=track_all_models
             )
 
             # Increase drop but cap at 50%
-            percentile_drop = min(percentile_drop + 5, 40)
+            percentile_drop = min(percentile_drop + 2, 30)
         
             self.generations_completed += 1
         print("EBE process completed.")

@@ -13,20 +13,22 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler, LabelEncoder, On
 from sklearn.model_selection import train_test_split
 
 # region Loading data
-def load_openml_dataset(dataset_id=334):
+def load_openml_dataset(dataset_id=334, verbose=False):
     """Loads dataset from OpenML and returns it as a Pandas DataFrame."""
     dataset = openml.datasets.get_dataset(dataset_id)
-    print(f"Loading Dataset: {dataset.name}")
+    if verbose:
+        print(f"Loading Dataset: {dataset.name}")
     X, y, _, _ = dataset.get_data(target=dataset.default_target_attribute)
     return X, y
 
-def preprocess_features(X, categorical_strategy='label'):
+def preprocess_features(X, categorical_strategy='label', verbose=False):
     """Encodes categorical features if present."""
     # Identify categorical columns
     categorical_columns = X.select_dtypes(include=['object', 'category']).columns.tolist()
 
     if categorical_columns:
-        print(f"Categorical features detected: {categorical_columns}")
+        if verbose:
+            print(f"Categorical features detected: {categorical_columns}")
         
         if categorical_strategy == 'onehot':
             X = pd.get_dummies(X, columns=categorical_columns)  # One-hot encoding
@@ -38,14 +40,15 @@ def preprocess_features(X, categorical_strategy='label'):
 
     return X.values  # Convert DataFrame to NumPy array
 
-def preprocess_target(y, encode_labels=True):
+def preprocess_target(y, encode_labels=True, verbose=False):
     """Encodes target labels if they are categorical."""
     if isinstance(y, pd.Series):
         y = y.values  # Keep it raw
 
     if encode_labels and not is_numeric_dtype(y):
-        print("Class column is not numeric. Applying LabelEncoder.")
         y = LabelEncoder().fit_transform(y)
+        if verbose:
+            print("Class column is not numeric. Applying LabelEncoder.")
 
     return y
     
@@ -104,27 +107,30 @@ def convert_to_tensor(X_train, X_val, X_test, y_train, y_val, y_test, return_as=
 
     return X_train, X_val, X_test, y_train, y_val, y_test
 
-def get_preprocessed_data(dataset_id=334, scaling=True, scaler_type='standard', 
+def get_preprocessed_data(dataset_id=334, scaling=True, 
+                          scaler_type='standard', 
                           categorical_strategy='label',
-                          return_as='tensor', random_seed=None, X=None, y=None, task_type='classification'):
+                          return_as='tensor', random_seed=None, X=None, y=None, task_type='classification',
+                          verbose=False
+                          ):
     """Full pipeline to load, preprocess, and return dataset."""
     
     if dataset_id is not None:
         # Load data
-        X, y = load_openml_dataset(dataset_id)
+        X, y = load_openml_dataset(dataset_id, verbose=verbose)
     
     X = X.copy()
     y = y.copy()
 
     # Convert categorical features to numeric
-    X = preprocess_features(X, categorical_strategy)
+    X = preprocess_features(X, categorical_strategy, verbose=verbose)
 
     # Convert target variable if needed
     if task_type == 'classification':
         encode_labels = True
     else: encode_labels = False
 
-    y = preprocess_target(y, encode_labels)
+    y = preprocess_target(y, encode_labels, verbose=verbose)
 
     # Split the dataset
     X_train, X_val, X_test, y_train, y_val, y_test = split_data(X, y, random_seed=random_seed)
@@ -138,9 +144,10 @@ def get_preprocessed_data(dataset_id=334, scaling=True, scaler_type='standard',
         X_train, X_val, X_test, y_train, y_val, y_test, return_as, task_type=task_type
     )
 
-    print(f'Data loaded successfully! Format: {return_as}')
-    print(f'Training data shape: {X_train.shape}')
-    print(f'y_training data shape: {y_train.shape}')
+    if verbose:
+        print(f'Data loaded successfully! Format: {return_as}')
+        print(f'Training data shape: {X_train.shape}')
+        print(f'y_training data shape: {y_train.shape}')
     return X_train, y_train, X_val, y_val, X_test, y_test
 
 

@@ -11,7 +11,6 @@ sys.path.append(os.path.abspath("./src"))
 
 import data_preprocessing as dp
 
-from instance_sampling import create_dataloaders
 from architecture_generator import create_model_from_row
 from utils import set_seed
 # endregion
@@ -61,13 +60,13 @@ def main(
         model_batch_size = int(model_row.get('batch_size', None))
         
         # Set seed for reproducibility
-        set_seed(model_seed)
-        train_loader = create_dataloaders(X=X_train, y=y_train, 
-                            batch_size=model_batch_size)
-        val_loader = create_dataloaders(X=X_val, y=y_val, 
-                            batch_size=model_batch_size)
-        test_loader = create_dataloaders(X=X_test, y=y_test, 
-                            batch_size=model_batch_size)
+        g, seed_worker = set_seed(model_seed)
+        train_loader = dp.create_dataloader(X=X_train, y=y_train, 
+                            batch_size=model_batch_size, generator=g, seed_worker=seed_worker)
+        val_loader = dp.create_dataloader(X=X_val, y=y_val, 
+                            batch_size=model_batch_size, generator=g, seed_worker=seed_worker)
+        test_loader = dp.create_dataloader(X=X_test, y=y_test, 
+                            batch_size=model_batch_size, generator=g, seed_worker=seed_worker)
         
         model = create_model_from_row(model_row, input_size, output_size)
 
@@ -113,7 +112,7 @@ def main(
     with open(f"{export_path}/{exp_id}_Oracle-summary.json", 'w') as json_file:
         json.dump(oracle_performance, json_file, indent=4)
 
-
+    print('  -EBE-Oracle Results Exported')
 
 # endregion
 if __name__ == "__main__":

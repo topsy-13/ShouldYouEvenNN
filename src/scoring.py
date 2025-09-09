@@ -9,28 +9,33 @@ def check_higher_than_baseline(candidates, baseline_metric):
 
 
 def score_individuals(candidates, baseline_metric):
-        check_higher_than_baseline(candidates, baseline_metric)
-        active_individuals = candidates.keys()
-        for i in active_individuals:
-            candidate = candidates[i]
-            last_val_acc = candidate.get_metric('val', 'acc', last_only=True) or 0.0
-            last_fcst_acc = candidate.get_metric("forecasted_val_acc") or 0.0
-            slope = candidate.metrics.get("slope_val_acc", 0.0)
-            variance = candidate.metrics.get("var_val_acc", 0.0)
-            gap = candidate.metrics.get("gap_val_acc", 0.0)
+    """
+    Score individuals with smoother baseline penalties.
+    - Reward forecast, slope, and stability.
+    - Baseline is used as a soft margin, not a hard cutoff.
+    """
+    for i, candidate in candidates.items():
+        last_val_acc = candidate.get_metric('val', 'acc', last_only=True) or 0.0
+        last_fcst_acc = candidate.metrics.get("forecasted_val_acc", last_val_acc)
+        slope = candidate.metrics.get("slope_val_acc", 0.0)
+        variance = candidate.metrics.get("var_val_acc", 0.0)
+        gap = candidate.metrics.get("gap_val_acc", 0.0)
 
-            if last_fcst_acc < baseline_metric:
-                # Below baseline → check momentum
-                if slope > 0.01 and gap > 0:  # improving fast enough
-                    score = 0.3 * last_val_acc + 0.5 * last_fcst_acc + 0.2 * slope
-                else:
-                    score = max(last_val_acc, 0.0)
-            else:
-                # Beating baseline forecast
-                fcst_gain = last_fcst_acc - baseline_metric
-                score = 0.6 * last_fcst_acc + 0.3 * fcst_gain + 0.1 * slope
+        # Smooth baseline influence
+        fcst_gap = last_fcst_acc - (baseline_metric or 0.0)
 
-            candidate.log_metric('score', value=score)
+        # Reward forecast + slope, penalize variance
+        score = (
+            0.5 * last_fcst_acc +
+            0.3 * slope +
+            0.2 * fcst_gap -
+            0.1 * variance
+        )
+
+        # Ensure non-negative
+        score = max(0.0, float(score))
+
+        candidate.log_metric('score', value=score)
 
 
 def get_worst_individuals(population, baseline_metric, 

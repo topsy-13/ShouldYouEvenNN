@@ -28,7 +28,7 @@ def main(data_id, seed):
     X_analysis = torch.cat([X_train, X_val], dim=0)
     y_analysis = torch.cat([y_train, y_val], dim=0)
 
-    print('Testing NaiveAutoML experiment...') 
+    # print('Testing NaiveAutoML experiment...') 
     baseline_metric, time_taken, naml_scoreboard, best_naml_model = bm.get_models_and_baseline_metric(
         X_analysis, y_analysis,
         # n_models=NAIVE_MODELS, # commented because outputing all of the models
@@ -64,7 +64,7 @@ def main(data_id, seed):
     directory = f'experiments/ebe_vs/naml_baseline-models'
     with open(os.path.join(directory, f"{exp_id}_NAML.json"), 'w') as json_file:
         json.dump(naml_results, json_file, indent=4)
-        
+    print('  -Naive results exported')    
 
 if __name__ == "__main__":
     main(data_id=54, seed=13)
