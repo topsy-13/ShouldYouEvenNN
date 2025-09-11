@@ -13,7 +13,7 @@ class SearchSpace():
     
     def __init__(self, input_size, output_size,
                  min_layers=2, max_layers=50, 
-                 min_neurons=3, max_neurons=500,
+                 min_neurons=3, max_neurons=100,
                  activation_fns=[nn.ReLU, nn.LeakyReLU, nn.Sigmoid, nn.Tanh, nn.ELU, nn.GELU],
                  dropout_rates=[0, 0.1, 0.2, 0.3, 0.4, 0.5],
                  min_learning_rate=0.0001, max_learning_rate=0.1,

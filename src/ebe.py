@@ -248,8 +248,8 @@ class Population():
             if elapsed_time >= time_budget:
                 print(f"Time budget exceeded at epoch {epoch + 1}: {elapsed_time:.2f} seconds")
                 if epoch <= self.epoch_threshold - 1:
-                    print("Not enough epochs completed for forecasting, stopping EBE.")
                     print("Try to reduce the number of candidates or increase the time budget.")
+                    raise("Not enough epochs completed for forecasting, stopping EBE.")
                     break
                 break
 
