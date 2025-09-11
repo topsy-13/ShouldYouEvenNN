@@ -39,14 +39,18 @@ def main(data_id=54, seed=12,
         )
     
     # Get data from the json results of the Naive Experiment
-    naml_path = f'./experiments/ebe_vs/naml_baseline-models'
+    starting_path = './experiments/ebe_vs/v2'
+    naml_path = os.path.join(starting_path,'naml')
 
     with open(os.path.join(naml_path, f'{DATA_ID}_{SEED}_NAML.json')) as f:
         naml_results = json.load(f)
         naml_time_taken = naml_results["time_taken"]
         naml_max_test_acc = naml_results["test_accuracy_best_non_nn_model"]
     
-
+    with open(os.path.join(starting_path, f'standard/{DATA_ID}_{SEED}_ML.json')) as f:
+        standard_results = json.load(f)
+        ml_time_taken = standard_results['total_training_time_sec']
+        ml_max_test_acc = standard_results["best_accuracy"]
     # enregion
     # region EBE
     input_size, output_size = dp.get_tensor_sizes(X_train, y_train)
@@ -61,15 +65,15 @@ def main(data_id=54, seed=12,
                             size=N_INDIVIDUALS,
                             starting_instances=starting_instances,
                             seed=SEED)
-    
-    time_budget_ebe = naml_time_taken * BUDGET_FACTOR
+    max_metric = max(naml_max_test_acc, ml_max_test_acc)
+    time_budget_ebe = ml_time_taken * BUDGET_FACTOR
     ebe_results_final = population.run_ebe(
                         X_train=X_train,
                         y_train=y_train,
                         X_val=X_val,
                         y_val=y_val, 
                         percentile_drop=percentile_drop,
-                        baseline_metric=naml_max_test_acc, 
+                        baseline_metric=max_metric, 
                         time_budget=time_budget_ebe,
                         epoch_threshold=5,
                         track_all_models=True,
@@ -102,7 +106,7 @@ def main(data_id=54, seed=12,
     }
 
     # Export EBE results
-    export_path = './experiments/ebe_vs/ebe-models'
+    export_path = './experiments/ebe_vs/v2/ebe'
     # Export as json and dataframe
 
     ebe_results_final.to_csv(f'{export_path}/{exp_id}_EBE.csv', index=False)
@@ -204,7 +208,7 @@ def train_by_es(n_individuals, ebe_results, seed, data_id):
     ebe_performance['min_test_loss'] = es_results['es_test_loss'].min()
 
     # Export as json and dataframe
-    export_path = './experiments/ebe_vs/ebe-models'
+    export_path = './experiments/ebe_vs/v2/ebe'
 
     es_results.to_csv(f'{export_path}/{exp_id}_ES_EBE.csv', index=False)
     with open(f"{export_path}/{exp_id}_ES_EBE-summary.json", 'w') as json_file:
