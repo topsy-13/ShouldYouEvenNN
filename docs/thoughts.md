@@ -11,3 +11,11 @@ WIP:
 -- Search Space (done)
 -- Architecture generator
 -- Data preprocessing
+
+
+----------------------------------------------------------------------------
+# 2025-09-02
+- Adjust the search space for the architecture generation so that it makes it more shaped like (3 args: starting layer, middle layer, end layer)
+- Seek for a success case.
+- Test with a bigger dataset.
+- Analyze in depth the behavior of the effort proposal.
