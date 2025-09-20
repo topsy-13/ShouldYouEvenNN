@@ -1,0 +1,7 @@
+{
+    "seed": 14125,
+    "data_id": 54,
+    "time_taken": 20.259171962738037,
+    "max_training_metric": 0.8338,
+    "test_accuracy_best_non_nn_model": 0.8470588235294118
+}

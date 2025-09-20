@@ -1,0 +1,47 @@
+{
+    "best_model": "DecisionTree",
+    "best_accuracy": 0.9953125,
+    "total_training_time_sec": 0.6481900215148926,
+    "all_results": {
+        "LogisticRegression": {
+            "test_acc": 0.971875,
+            "training_time_sec": 0.003998517990112305
+        },
+        "SVC": {
+            "test_acc": 0.98125,
+            "training_time_sec": 0.05850648880004883
+        },
+        "DecisionTree": {
+            "test_acc": 0.9953125,
+            "training_time_sec": 0.003000974655151367
+        },
+        "RandomForest": {
+            "test_acc": 0.9875,
+            "training_time_sec": 0.10651063919067383
+        },
+        "GradientBoosting": {
+            "test_acc": 0.984375,
+            "training_time_sec": 0.14551568031311035
+        },
+        "AdaBoost": {
+            "test_acc": 0.946875,
+            "training_time_sec": 0.0525050163269043
+        },
+        "KNN": {
+            "test_acc": 0.953125,
+            "training_time_sec": 0.0
+        },
+        "NaiveBayes": {
+            "test_acc": 0.6265625,
+            "training_time_sec": 0.00099945068359375
+        },
+        "QDA": {
+            "test_acc": 0.6640625,
+            "training_time_sec": 0.006505727767944336
+        },
+        "LDA": {
+            "test_acc": 0.9453125,
+            "training_time_sec": 0.06450653076171875
+        }
+    }
+}

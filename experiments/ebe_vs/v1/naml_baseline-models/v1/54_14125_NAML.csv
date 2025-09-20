@@ -1,0 +1,402 @@
+,pipeline,accuracy
+16,"Pipeline(steps=[('data-pre-processor', MinMaxScaler()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.8338
+8,"Pipeline(steps=[('learner', QuadraticDiscriminantAnalysis())])",0.8338
+23,"Pipeline(steps=[('feature-pre-processor', FastICA()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.8338
+28,"Pipeline(steps=[('feature-pre-processor', PCA()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.8338
+21,"Pipeline(steps=[('data-pre-processor', StandardScaler()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.8338
+22,"Pipeline(steps=[('data-pre-processor', VarianceThreshold()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.8338
+20,"Pipeline(steps=[('data-pre-processor', RobustScaler()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.8338
+17,"Pipeline(steps=[('data-pre-processor', Normalizer()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.8265
+18,"Pipeline(steps=[('data-pre-processor', PowerTransformer()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.8044
+9,"Pipeline(steps=[('learner', SVC(kernel='linear'))])",0.8015
+19,"Pipeline(steps=[('data-pre-processor', QuantileTransformer()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.7838
+13,"Pipeline(steps=[('learner', LogisticRegression())])",0.7721
+2,"Pipeline(steps=[('learner', HistGradientBoostingClassifier())])",0.7691
+7,"Pipeline(steps=[('learner', LinearDiscriminantAnalysis())])",0.7618
+10,"Pipeline(steps=[('learner', SVC())])",0.7588
+1,"Pipeline(steps=[('learner', RandomForestClassifier())])",0.7397
+0,"Pipeline(steps=[('learner', ExtraTreesClassifier())])",0.7368
+86,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.9853726559525, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.1294513132191))])",0.7324
+77,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.9864782307702, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.0399874000825))])",0.7294
+4,"Pipeline(steps=[('learner', DecisionTreeClassifier())])",0.7132
+110,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.9833991850545, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.4893167010426))])",0.7074
+117,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.9784977511457, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.4204041710318))])",0.7
+51,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9864882227182)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.5545076317049))])",0.6912
+11,"Pipeline(steps=[('learner', SVC(kernel='poly'))])",0.6882
+6,"Pipeline(steps=[('learner', KNeighborsClassifier())])",0.6882
+120,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.9519989284363, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.3874693724177))])",0.6824
+113,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.9638179645289, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.2771072083568))])",0.6824
+54,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.9779370486997, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.7994506410047))])",0.6779
+33,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9840714243685)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.6247430380443))])",0.6662
+90,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.9538937295281, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.670563108832))])",0.6632
+83,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9882141216862)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.6988749693256))])",0.6368
+80,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.952662022054)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.6050766400951))])",0.6309
+108,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.9303474684987, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.4869534893789))])",0.6221
+79,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9966300757178)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.8149516727708))])",0.5985
+29,"Pipeline(steps=[('feature-pre-processor', PolynomialFeatures()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.5529
+114,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9142993382696)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.0202892585485))])",0.5441
+12,"Pipeline(steps=[('learner', SVC(kernel='sigmoid'))])",0.5176
+73,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.871698472096, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.1097703231617))])",0.5074
+82,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.9097873861593, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.1573676023958))])",0.5059
+35,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.8779552968554)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.352349063159))])",0.5059
+37,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.8929252852863)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.0916253198717))])",0.5044
+50,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.8920259766, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.5673965888591))])",0.5015
+60,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.865611306972, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.0401217918282))])",0.4956
+93,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.8728663213374, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.6638390493191))])",0.4941
+75,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.8921492805255, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.7316513761098))])",0.4912
+59,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9582636238494)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.9390107223933))])",0.4912
+123,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.8132413062932, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.3493227198873))])",0.4897
+64,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.8387483970803, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.3514851538316))])",0.4897
+48,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.8129767152648, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.2377712885635))])",0.4809
+91,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9288551214207)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.9407748160635))])",0.4735
+46,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.8935217639936)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.7630931769365))])",0.4735
+84,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.8077549883289, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.2179615715071))])",0.4735
+72,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.8238662791404, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.0336602919734))])",0.4676
+94,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.9072826000137, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.9447378422043))])",0.4662
+121,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.8445134138696)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.3837889718885))])",0.4618
+107,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.9136743004011)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.8399546081641))])",0.4603
+81,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.8256019230836)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.5755494304975))])",0.4559
+32,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.8245506192262, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.8789531396342))])",0.4515
+55,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.8634307638185, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.8747962837074))])",0.45
+53,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.8192440303341)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.6463385978793))])",0.4485
+5,"Pipeline(steps=[('learner', GaussianNB())])",0.4485
+68,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.8567776210167)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.6811176844922))])",0.4485
+38,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.828601320015)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.6909485862247))])",0.4471
+3,"Pipeline(steps=[('learner', BernoulliNB())])",0.4412
+30,"Pipeline(steps=[('feature-pre-processor', SelectPercentile()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.4382
+116,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.7818377996543)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.190702693557))])",0.4294
+105,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.7653741567779)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.2149912602342))])",0.4279
+106,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.7234250204154)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.2469132534605))])",0.4279
+39,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.7811278431208, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.4722997140084))])",0.4265
+92,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.7797250737443, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.4014773717576))])",0.4235
+78,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.7675715140111)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.6480368375358))])",0.4235
+112,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.7842762477753)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.6733075258876))])",0.4221
+67,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.7062078558119)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.8661803015044))])",0.4221
+130,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.6462498777399, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.268105337851))])",0.4206
+102,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.7781909410664)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.7934225091653))])",0.4206
+122,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.6670500332536, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.5317421097812))])",0.4191
+119,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.6622371763389, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.5098666462784))])",0.4191
+125,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.5971200180435, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.6133027601457))])",0.4191
+115,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.5751099325595, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.6054435859073))])",0.4191
+44,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.7296630980296, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.2997327900946))])",0.4191
+76,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.6984821863853)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.4514613689767))])",0.4176
+70,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.6612503466331, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.5487029313945))])",0.4176
+36,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.5386448523548, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.5531230781028))])",0.4176
+96,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.5397755261285, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.366306575973))])",0.4176
+98,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.6469913791237, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.6262635285402))])",0.4176
+69,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.6470184141443, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.3314479625179))])",0.4176
+47,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.6184320676885, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.569034106173))])",0.4162
+87,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.699789676378, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.6986657601167))])",0.4162
+118,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.658263789585, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.6973356853277))])",0.4162
+42,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.7591904485985, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.7647189943094))])",0.4147
+66,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.5940061920632)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.0581926123497))])",0.4147
+104,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.7359280253117, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.7468878080084))])",0.4147
+109,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.5393066826716, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.5719883512135))])",0.4147
+71,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.6303927420074, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.3175093710282))])",0.4147
+58,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.7471676869614, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.2231226648233))])",0.4147
+127,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.6183558647199)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.1141555862317))])",0.4147
+97,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.5983247037427)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.8796203367948))])",0.4147
+131,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.596225699455, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.8732663257229))])",0.4132
+101,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.6696186295617, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.1611896046904))])",0.4118
+49,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.5844056435843)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.073130831648))])",0.4118
+34,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.6228833083812, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.7500633778798))])",0.4103
+62,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.6635836943308, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.8570260769432))])",0.4103
+126,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.5817290793392, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.8187752822197))])",0.4088
+85,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.6620649388932, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.7983867882654))])",0.4088
+74,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.6020188746501)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.2789246668943))])",0.4088
+99,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.6765598329623)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.2136888659081))])",0.4088
+43,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.6940221114914)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.6218198492645))])",0.4088
+56,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.7136191341995, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.0387244369536))])",0.4074
+128,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.6136024267019)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.8214408896103))])",0.4059
+103,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.5505124919024)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.8078980593121))])",0.4044
+40,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.5389309294432)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.8094992983068))])",0.4044
+52,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.707318354949)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.0985570167739))])",0.4029
+65,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.5630448261057)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.6765929973168))])",0.4
+63,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.7407841350525)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.0076728983689))])",0.4
+89,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.6405452925308)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.7896930769513))])",0.3985
+88,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.6835779487007)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.7127273409364))])",0.3971
+124,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.5531430307286)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.78449630072))])",0.3956
+111,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.6096924936926)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.6961999178991))])",0.3956
+61,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.5327093540798)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.2221656603634))])",0.3912
+31,"Pipeline(steps=[('feature-pre-processor', GenericUnivariateSelect()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.3882
+45,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.5288733982672, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.1041371450053))])",0.3588
+95,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.5153107266856, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.9643001264157))])",0.3441
+129,"Pipeline(steps=[('feature-pre-processor',
+                 PCA(n_components=0.5077409199387, whiten=True)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.2155279124786))])",0.3426
+100,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.5187203558813)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.5020903574645))])",0.3397
+41,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.5134313110398)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.3982172480817))])",0.3353
+24,"Pipeline(steps=[('feature-pre-processor', FeatureAgglomeration()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.3324
+57,"Pipeline(steps=[('feature-pre-processor', PCA(n_components=0.5001844584589)),
+                ('learner',
+                 QuadraticDiscriminantAnalysis(reg_param=0.7415722771903))])",0.3279
+15,"Pipeline(steps=[('learner', MultinomialNB())])",
+25,"Pipeline(steps=[('feature-pre-processor', KernelPCA()),
+                ('learner', QuadraticDiscriminantAnalysis())])",
+26,"Pipeline(steps=[('feature-pre-processor', RBFSampler()),
+                ('learner', QuadraticDiscriminantAnalysis())])",
+27,"Pipeline(steps=[('feature-pre-processor', Nystroem()),
+                ('learner', QuadraticDiscriminantAnalysis())])",

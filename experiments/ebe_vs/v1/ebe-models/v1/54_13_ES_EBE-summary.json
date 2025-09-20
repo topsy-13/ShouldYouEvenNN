@@ -1,0 +1,11 @@
+{
+    "seed": 13,
+    "data_id": 54,
+    "training_time": 76.59400081634521,
+    "max_train_acc": 1.0,
+    "min_train_loss": 0.0006123891798779368,
+    "max_val_acc": 0.875,
+    "min_val_loss": 0.40615906960823955,
+    "max_test_acc": 0.8176470588235294,
+    "min_test_loss": 0.399009062612758
+}

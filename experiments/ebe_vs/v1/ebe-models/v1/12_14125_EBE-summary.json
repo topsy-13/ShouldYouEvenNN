@@ -1,0 +1,11 @@
+{
+    "seed": 14125,
+    "data_id": 12,
+    "time_budget": 2346.035526752472,
+    "time_taken": 1124.3198668956757,
+    "naml_baseline_metric": 0.9775,
+    "candidates_created": 7804,
+    "n_above_baseline_fcst": 0,
+    "max_ebe_train_acc": 1.0,
+    "max_ebe_val_acc": 0.98125
+}
