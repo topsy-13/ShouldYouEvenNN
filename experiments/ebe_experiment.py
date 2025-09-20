@@ -17,10 +17,10 @@ from ebe import Population
 
 
 def main(data_id=54, seed=12,
-         n_individuals=100, 
+         n_individuals=50, 
          starting_instances_proportion=0.1,
          percentile_drop=10,
-         time_budget_factor=3):
+         time_budget_factor=10):
     
     # region Set the scenario
     DATA_ID = data_id
@@ -49,7 +49,7 @@ def main(data_id=54, seed=12,
     
     with open(os.path.join(starting_path, f'standard/{DATA_ID}_{SEED}_ML.json')) as f:
         standard_results = json.load(f)
-        ml_time_taken = standard_results['total_training_time_sec']
+        ml_time_taken = standard_results["hist_gradient_boosting_training_time_sec"]
         ml_max_test_acc = standard_results["best_accuracy"]
     # enregion
     # region EBE
@@ -67,6 +67,9 @@ def main(data_id=54, seed=12,
                             seed=SEED)
     max_metric = max(naml_max_test_acc, ml_max_test_acc)
     time_budget_ebe = ml_time_taken * BUDGET_FACTOR
+    print('Hist time', ml_time_taken)
+    print('Budget factor', BUDGET_FACTOR)
+    print('Assigned budget', time_budget_ebe)
     ebe_results_final = population.run_ebe(
                         X_train=X_train,
                         y_train=y_train,
@@ -75,7 +78,7 @@ def main(data_id=54, seed=12,
                         percentile_drop=percentile_drop,
                         baseline_metric=max_metric, 
                         time_budget=time_budget_ebe,
-                        epoch_threshold=5,
+                        epoch_threshold=3,
                         track_all_models=True,
                         forecast_method='rational'
                     
@@ -220,11 +223,11 @@ def train_by_es(n_individuals, ebe_results, seed, data_id):
 
 def ebe_main(data_id, seed):
     ebe_performance, ebe_results_all, ebe_results_final = main(data_id=data_id, seed=seed, 
-    n_individuals=130, starting_instances_proportion=0.1, time_budget_factor=3, percentile_drop=15)
+    n_individuals=50, starting_instances_proportion=0.1, time_budget_factor=10, percentile_drop=15)
     print('  -EBE Results Exported')
     
     train_by_es(data_id=data_id, seed=seed,
-        n_individuals=130, 
+        n_individuals=50, 
         ebe_results=ebe_results_final)
     print('  -EBE-ES Results Exported')
     

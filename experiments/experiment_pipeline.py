@@ -49,5 +49,5 @@ if __name__ == "__main__":
         main(dataset_name=dataset_name, data_id=data_id)
        else: pass
 
-    print('There is more hope')
+    print('There is hope')
     os.system("shutdown /s /t 1")
