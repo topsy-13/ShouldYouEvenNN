@@ -223,7 +223,7 @@ def train_by_es(n_individuals, ebe_results, seed, data_id):
 
 def ebe_main(data_id, seed):
     ebe_performance, ebe_results_all, ebe_results_final = main(data_id=data_id, seed=seed, 
-    n_individuals=50, starting_instances_proportion=0.1, time_budget_factor=10, percentile_drop=15)
+    n_individuals=50, starting_instances_proportion=0.05, time_budget_factor=10, percentile_drop=20)
     print('  -EBE Results Exported')
     
     train_by_es(data_id=data_id, seed=seed,

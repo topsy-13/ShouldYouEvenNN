@@ -64,46 +64,70 @@ def forecast_accuracy(efforts, accuracies, max_effort=1000, model_type='rational
 
 
 def forecast_generation(candidates, effort_threshold=3,
-                        method='rational', min_epochs_for_rational=5):
+                        method='rational', min_epochs_for_rational=5,
+                        total_batches=1000):
     """
-    Generate forecasts for all candidates.
-    Uses slope for early training, rational+linear ensemble later.
+    Generate optimistic forecasts for all candidates.
+    - Very forgiving with minimal data.
+    - Boosts forecasts aggressively in early batches.
+    - Always favors upward trajectories unless model is flatlining badly.
     """
 
     for i, candidate in candidates.items():
         efforts = candidate.efforts
         val_accs = candidate.get_metric('val', 'acc')
 
-        if candidate.epochs_trained < effort_threshold or len(val_accs) < effort_threshold:
-            continue  # Not enough data
+        if not efforts or not val_accs:
+            continue
 
-        # --- Always compute slope-based forecast ---
+        # Early skip threshold
+        if candidate.epochs_trained < effort_threshold or len(val_accs) < effort_threshold:
+            # With ultra minimal data, enforce an optimistic prior
+            last_val = val_accs[-1]
+            forecasted_accuracy = min(1.0, last_val + 0.15)  # "hopeful bump"
+            candidate.metrics["forecasted_val_acc"] = forecasted_accuracy
+            candidate.metrics["slope_val_acc"] = 0.0
+            candidate.metrics["var_val_acc"] = 0.0
+            candidate.metrics["gap_val_acc"] = 0.0
+            continue
+
+        # --- Slope forecast ---
         slope = (val_accs[-1] - val_accs[0]) / max(1e-6, efforts[-1] - efforts[0])
-        slope_fcst = float(np.clip(val_accs[-1] + slope * (max(efforts) * 2), 0.0, 1.0))
+        slope_boost = np.log1p((total_batches / max(1, efforts[-1])))  # scale slope optimism
+        slope_fcst = float(np.clip(val_accs[-1] + slope * (max(efforts) * slope_boost), 0.0, 1.0))
 
         variance = float(np.var(val_accs))
         last_gap = val_accs[-1] - np.mean(val_accs[:-1]) if len(val_accs) > 1 else 0.0
 
-        # --- Try rational forecast if enough epochs ---
+        # --- Rational forecast ---
         rational_fcst = None
         if len(val_accs) >= min_epochs_for_rational:
             try:
                 rational_fcst = forecast_accuracy(efforts, val_accs, model_type='rational')
             except Exception:
-                pass
+                rational_fcst = None
 
-        # --- Always compute linear as fallback ---
+        # --- Linear forecast ---
         linear_fcst = None
         try:
             linear_fcst = forecast_accuracy(efforts, val_accs, model_type='linear')
         except Exception:
-            pass
+            linear_fcst = None
 
-        # --- Pick ensemble forecast ---
+        # --- Ensemble optimistic rule ---
         forecasts = [fc for fc in [slope_fcst, rational_fcst, linear_fcst] if fc is not None]
-        forecasted_accuracy = max(forecasts) if forecasts else val_accs[-1]
+        base_fcst = max(forecasts) if forecasts else val_accs[-1]
 
-        candidate.metrics["forecasted_val_acc"] = forecasted_accuracy
+        # --- Optimism boost ---
+        batches_seen = efforts[-1]
+        optimism_boost = (1 - batches_seen / total_batches) * 0.25  # bigger boost early
+        optimistic_fcst = min(1.0, base_fcst + optimism_boost)
+
+        # Guarantee at least +0.15 over last val unless clearly collapsing
+        final_fcst = max(optimistic_fcst, val_accs[-1] + 0.15)
+        final_fcst = float(np.clip(final_fcst, 0.0, 1.0))
+
+        candidate.metrics["forecasted_val_acc"] = final_fcst
         candidate.metrics["slope_val_acc"] = slope
         candidate.metrics["var_val_acc"] = variance
         candidate.metrics["gap_val_acc"] = last_gap

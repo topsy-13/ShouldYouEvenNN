@@ -23,7 +23,7 @@ class Candidate:
             "test": {"loss": [], "acc": []},
             "forecasted_val_acc": 0.0,
             "score": 0.0,
-            "forecast_gain": 0.0,
+            # "forecast_gain": 0.0,
             "fcst_greater_than_baseline": False
         }
         

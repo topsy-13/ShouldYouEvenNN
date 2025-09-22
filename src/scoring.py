@@ -1,3 +1,4 @@
+import numpy as np
 
 def check_higher_than_baseline(candidates, baseline_metric):
     active_individuals = candidates.keys()
@@ -10,10 +11,11 @@ def check_higher_than_baseline(candidates, baseline_metric):
 
 def score_individuals(candidates, baseline_metric):
     """
-    Score individuals with smoother baseline penalties.
-    - Reward forecast, slope, and stability.
-    - Baseline is used as a soft margin, not a hard cutoff.
+    Score individuals with *optimistic tilt*.
+    - Reward forecast, slope, and variance-as-potential.
+    - Baseline is a soft margin, not a guillotine.
     """
+
     for i, candidate in candidates.items():
         last_val_acc = candidate.get_metric('val', 'acc', last_only=True) or 0.0
         last_fcst_acc = candidate.metrics.get("forecasted_val_acc", last_val_acc)
@@ -24,15 +26,18 @@ def score_individuals(candidates, baseline_metric):
         # Smooth baseline influence
         fcst_gap = last_fcst_acc - (baseline_metric or 0.0)
 
-        # Reward forecast + slope, penalize variance
+        # Optimistic scoring:
+        # - Forecast is king
+        # - Slope still matters
+        # - Variance is potential, not punishment
         score = (
-            0.5 * last_fcst_acc +
-            0.3 * slope +
-            0.2 * fcst_gap -
-            0.1 * variance
+            0.6 * last_fcst_acc +
+            0.25 * slope +
+            0.15 * fcst_gap +
+            0.1 * np.sqrt(max(0.0, variance))  # variance as potential energy
         )
 
-        # Ensure non-negative
+        # Always non-negative
         score = max(0.0, float(score))
 
         candidate.log_metric('score', value=score)

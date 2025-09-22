@@ -18,7 +18,7 @@ from forecaster import forecast_generation
 from utils import set_seed
 from candidates import Candidate
 from evolution import breed_and_mutate
-from scoring import score_individuals, get_worst_individuals
+from scoring import score_individuals, get_worst_individuals, check_higher_than_baseline
 
 # region Generations
 class Population():
@@ -68,7 +68,7 @@ class Population():
 
             # Cap it to the max instances of training data
             n_instances = min(candidate.n_instances[-1], len(X_train))
-            dataset_fraction = n_instances / len(X_train)
+            # dataset_fraction = n_instances / len(X_train) 
             
             # Set seed for reproducibility
             g, seed_worker = set_seed(seed)
@@ -88,8 +88,11 @@ class Population():
                 candidate.log_metric('train', 'loss', train_loss)
                 candidate.log_metric('train', 'acc', train_acc)
                 # Store epochs and efforts
-                current_epoch = candidate.epochs_trained + 1
-                candidate.efforts.append(dataset_fraction * current_epoch)
+                # candidate.efforts.append(dataset_fraction * current_epoch)
+                
+                n_batches = int(np.ceil(n_instances / batch_size))
+                candidate.efforts.append(candidate.efforts[-1] + n_batches if candidate.efforts else n_batches)
+
                 candidate.update_n_instances(n_instances * 2)  # Double for next time
                 candidate.epochs_trained += 1
 
@@ -206,6 +209,7 @@ class Population():
         self.train_generation(X_train, y_train)
         self.validate_generation(X_val, y_val)
         forecast_generation(self.candidates, effort_threshold=epoch_threshold, method=forecast_method)
+        check_higher_than_baseline(self.candidates, baseline_metric=goal_metric)
         score_individuals(self.candidates, baseline_metric=goal_metric)
         self.current_snapshot = self.build_ledger()
 
