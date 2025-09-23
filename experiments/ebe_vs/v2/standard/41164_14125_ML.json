@@ -1,0 +1,52 @@
+{
+    "best_model": "HistGradientBoosting",
+    "best_accuracy": 0.6996359223300971,
+    "total_training_time_sec": 71.15202164649963,
+    "hist_gradient_boosting_training_time_sec": 14.205891847610474,
+    "all_results": {
+        "LogisticRegression": {
+            "test_acc": 0.6529126213592233,
+            "training_time_sec": 0.7295196056365967
+        },
+        "SVC": {
+            "test_acc": 0.6680825242718447,
+            "training_time_sec": 6.752303600311279
+        },
+        "DecisionTree": {
+            "test_acc": 0.654126213592233,
+            "training_time_sec": 1.2314770221710205
+        },
+        "RandomForest": {
+            "test_acc": 0.6947815533980582,
+            "training_time_sec": 3.3705246448516846
+        },
+        "GradientBoosting": {
+            "test_acc": 0.6638349514563107,
+            "training_time_sec": 38.92129373550415
+        },
+        "HistGradientBoosting": {
+            "test_acc": 0.6996359223300971,
+            "training_time_sec": 14.205891847610474
+        },
+        "AdaBoost": {
+            "test_acc": 0.316747572815534,
+            "training_time_sec": 1.3207669258117676
+        },
+        "KNN": {
+            "test_acc": 0.6195388349514563,
+            "training_time_sec": 0.004998922348022461
+        },
+        "NaiveBayes": {
+            "test_acc": 0.49393203883495146,
+            "training_time_sec": 0.02000117301940918
+        },
+        "QDA": {
+            "test_acc": 0.05703883495145631,
+            "training_time_sec": 0.5142917633056641
+        },
+        "LDA": {
+            "test_acc": 0.695995145631068,
+            "training_time_sec": 1.1035454273223877
+        }
+    }
+}

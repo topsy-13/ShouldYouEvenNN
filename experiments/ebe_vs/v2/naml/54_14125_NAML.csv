@@ -1,0 +1,48 @@
+,pipeline,accuracy
+8,"Pipeline(steps=[('learner', QuadraticDiscriminantAnalysis())])",0.8426
+22,"Pipeline(steps=[('data-pre-processor', VarianceThreshold()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.8426
+20,"Pipeline(steps=[('data-pre-processor', RobustScaler()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.8426
+16,"Pipeline(steps=[('data-pre-processor', MinMaxScaler()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.8426
+21,"Pipeline(steps=[('data-pre-processor', StandardScaler()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.8426
+28,"Pipeline(steps=[('feature-pre-processor', PCA()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.8426
+23,"Pipeline(steps=[('feature-pre-processor', FastICA()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.8426
+17,"Pipeline(steps=[('data-pre-processor', Normalizer()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.8397
+18,"Pipeline(steps=[('data-pre-processor', PowerTransformer()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.8162
+9,"Pipeline(steps=[('learner', SVC(kernel='linear'))])",0.8074
+13,"Pipeline(steps=[('learner', LogisticRegression())])",0.8044
+7,"Pipeline(steps=[('learner', LinearDiscriminantAnalysis())])",0.7809
+2,"Pipeline(steps=[('learner', HistGradientBoostingClassifier())])",0.7632
+19,"Pipeline(steps=[('data-pre-processor', QuantileTransformer()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.7632
+1,"Pipeline(steps=[('learner', RandomForestClassifier())])",0.7574
+0,"Pipeline(steps=[('learner', ExtraTreesClassifier())])",0.7426
+10,"Pipeline(steps=[('learner', SVC())])",0.7397
+11,"Pipeline(steps=[('learner', SVC(kernel='poly'))])",0.7059
+4,"Pipeline(steps=[('learner', DecisionTreeClassifier())])",0.7015
+6,"Pipeline(steps=[('learner', KNeighborsClassifier())])",0.6779
+29,"Pipeline(steps=[('feature-pre-processor', PolynomialFeatures()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.5265
+12,"Pipeline(steps=[('learner', SVC(kernel='sigmoid'))])",0.5235
+5,"Pipeline(steps=[('learner', GaussianNB())])",0.45
+3,"Pipeline(steps=[('learner', BernoulliNB())])",0.4441
+30,"Pipeline(steps=[('feature-pre-processor', SelectPercentile()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.4353
+31,"Pipeline(steps=[('feature-pre-processor', GenericUnivariateSelect()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.3721
+24,"Pipeline(steps=[('feature-pre-processor', FeatureAgglomeration()),
+                ('learner', QuadraticDiscriminantAnalysis())])",0.3662
+15,"Pipeline(steps=[('learner', MultinomialNB())])",
+25,"Pipeline(steps=[('feature-pre-processor', KernelPCA()),
+                ('learner', QuadraticDiscriminantAnalysis())])",
+26,"Pipeline(steps=[('feature-pre-processor', RBFSampler()),
+                ('learner', QuadraticDiscriminantAnalysis())])",
+27,"Pipeline(steps=[('feature-pre-processor', Nystroem()),
+                ('learner', QuadraticDiscriminantAnalysis())])",

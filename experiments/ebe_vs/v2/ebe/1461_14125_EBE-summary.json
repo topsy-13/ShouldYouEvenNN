@@ -1,0 +1,18 @@
+{
+    "seed": 14125,
+    "data_id": 1461,
+    "time_factor": 64,
+    "time_budget": 13.76171875,
+    "time_taken": 26.668015718460083,
+    "naml_baseline_metric": 0.9114232002653987,
+    "candidates_created": 32,
+    "mean_p_above_goal": 0.5595815531051336,
+    "median_p_above_goal": 0.700080062572337,
+    "max_p_above_goal": 0.7000803764415958,
+    "max_ebe_train_acc": 0.8838575872796405,
+    "max_ebe_val_acc": 0.892175836328449,
+    "ShouldYouEvenNN?": false,
+    "Exp. Utility": -0.08794893247701056,
+    "p_above_goal": 0.7000803764415958,
+    "benefit": 0.08857679973460131
+}

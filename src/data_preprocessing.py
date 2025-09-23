@@ -21,63 +21,162 @@ def load_openml_dataset(dataset_id=334, verbose=False):
     X, y, _, _ = dataset.get_data(target=dataset.default_target_attribute)
     return X, y
 
-def preprocess_features(X, categorical_strategy='label', verbose=False):
-    """Encodes categorical features if present."""
-    # Identify categorical columns
-    categorical_columns = X.select_dtypes(include=['object', 'category']).columns.tolist()
+
+def preprocess_features(X_train, X_val, X_test,
+                        categorical_strategy="label", verbose=False):
+    """Fit encoders on train only, apply to val/test."""
+    categorical_columns = X_train.select_dtypes(include=['object', 'category']).columns.tolist()
 
     if categorical_columns:
         if verbose:
             print(f"Categorical features detected: {categorical_columns}")
-        
-        if categorical_strategy == 'onehot':
-            X = pd.get_dummies(X, columns=categorical_columns)  # One-hot encoding
-        elif categorical_strategy == 'label':
+
+        if categorical_strategy == "onehot":
+            # Fit one-hot encoder on train only
+            encoder = OneHotEncoder(handle_unknown="ignore", sparse=False)
+            X_train_enc = pd.DataFrame(encoder.fit_transform(X_train[categorical_columns]))
+            X_val_enc   = pd.DataFrame(encoder.transform(X_val[categorical_columns]))
+            X_test_enc  = pd.DataFrame(encoder.transform(X_test[categorical_columns]))
+
+            # Drop original cat columns + concat encoded
+            X_train = X_train.drop(columns=categorical_columns).reset_index(drop=True)
+            X_val   = X_val.drop(columns=categorical_columns).reset_index(drop=True)
+            X_test  = X_test.drop(columns=categorical_columns).reset_index(drop=True)
+
+            X_train = pd.concat([X_train.reset_index(drop=True), X_train_enc], axis=1)
+            X_val   = pd.concat([X_val.reset_index(drop=True), X_val_enc], axis=1)
+            X_test  = pd.concat([X_test.reset_index(drop=True), X_test_enc], axis=1)
+
+        elif categorical_strategy == "label":
+            # Label encode column by column (fit on train, apply to others)
             for col in categorical_columns:
-                X[col] = LabelEncoder().fit_transform(X[col].astype(str))  # Label encoding
+                le = LabelEncoder()
+                X_train[col] = le.fit_transform(X_train[col].astype(str))
+                X_val[col]   = le.transform(X_val[col].astype(str))
+                X_test[col]  = le.transform(X_test[col].astype(str))
+
         else:
             raise ValueError("categorical_strategy must be 'onehot' or 'label'.")
 
-    return X.values  # Convert DataFrame to NumPy array
+    return X_train, X_val, X_test
 
-def preprocess_target(y, encode_labels=True, verbose=False):
-    """Encodes target labels if they are categorical."""
-    if isinstance(y, pd.Series):
-        y = y.values  # Keep it raw
 
-    if encode_labels and not is_numeric_dtype(y):
-        y = LabelEncoder().fit_transform(y)
-        if verbose:
-            print("Class column is not numeric. Applying LabelEncoder.")
+import numpy as np
+import pandas as pd
 
-    return y
+def preprocess_target(y_train, y_val, y_test, encode_labels=True, min_class_count=2, verbose=False):
+    """
+    Fit label encoder on y_train, apply to val/test safely.
+    Rare classes (fewer than min_class_count in the whole dataset) are mapped to 'other'.
+    """
+    if not encode_labels:
+        return y_train, y_val, y_test
+
+    # Combine all splits to detect rare classes
+    y_all = np.concatenate([np.array(y_train), np.array(y_val), np.array(y_test)])
+    counts = pd.Series(y_all).value_counts()
+    rare_classes = counts[counts < min_class_count].index.tolist()
+
+    if rare_classes and verbose:
+        print(f"Collapsing rare classes {rare_classes} -> 'other'")
+
+    def replace_rare(y):
+        return np.array([lbl if lbl not in rare_classes else "__other__" for lbl in y])
+
+    y_train = replace_rare(y_train)
+    y_val   = replace_rare(y_val)
+    y_test  = replace_rare(y_test)
+
+    # Fit LabelEncoder on train
+    from sklearn.preprocessing import LabelEncoder
+    le = LabelEncoder()
+    y_train_enc = le.fit_transform(y_train)
+
+    # Map val/test safely
+    y_val_enc  = le.transform(y_val)
+    y_test_enc = le.transform(y_test)
+
+    return y_train_enc, y_val_enc, y_test_enc
+
+
+def split_data(X, y, test_size=0.2, val_size=0.2, random_seed=None, stratify=True):
+    """Splits data into train, validation, and test sets with optional stratification."""
     
+    stratify_y = y if stratify else None
 
-def split_data(X, y, test_size=0.2, val_size=0.2, random_seed=None):
-    """Splits data into train, validation, and test sets."""
+    # First split off test set
     X_train_val, X_test, y_train_val, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=random_seed
+        X, y,
+        test_size=test_size,
+        random_state=random_seed,
+        stratify=stratify_y
     )
     
+    # Then split train/val
+    stratify_y_train_val = y_train_val if stratify else None
     X_train, X_val, y_train, y_val = train_test_split(
-        X_train_val, y_train_val, test_size=val_size, random_state=random_seed
+        X_train_val, y_train_val,
+        test_size=val_size,
+        random_state=random_seed,
+        stratify=stratify_y_train_val
     )
 
     return X_train, X_val, X_test, y_train, y_val, y_test
 
-def scale_features(X_train, X_val, X_test, scaler_type='standard'):
-    """Scales features using StandardScaler or MinMaxScaler."""
+def scale_features(X_train, X_val, X_test, scaler_type="standard"):
     scalers = {
         'standard': StandardScaler(),
         'minmax': MinMaxScaler()
     }
-    scaler = scalers.get(scaler_type, StandardScaler())  # Default: StandardScaler
-
+    scaler = scalers.get(scaler_type, StandardScaler())
     X_train = scaler.fit_transform(X_train)
-    X_val = scaler.transform(X_val)
-    X_test = scaler.transform(X_test)
-    
+    X_val   = scaler.transform(X_val)
+    X_test  = scaler.transform(X_test)
     return X_train, X_val, X_test
+
+
+def get_preprocessed_data(dataset_id=334, scaling=True, 
+                          scaler_type="standard",
+                          categorical_strategy="label", return_as="tensor",
+                          random_seed=None, X=None, y=None,
+                          task_type="classification", verbose=False):
+
+    if dataset_id is not None:
+        dataset = openml.datasets.get_dataset(dataset_id)
+        if verbose:
+            print(f"Loading Dataset: {dataset.name}")
+        X, y, _, _ = dataset.get_data(target=dataset.default_target_attribute)
+
+    # Split raw first
+    X_train, X_val, X_test, y_train, y_val, y_test = split_data(X, y, random_seed=random_seed)
+
+    # Encode features
+    X_train, X_val, X_test = preprocess_features(X_train, X_val, X_test,
+                                                 categorical_strategy, verbose=verbose)
+
+    # Encode target
+    encode_labels = True if task_type == "classification" else False
+    y_train, y_val, y_test = preprocess_target(y_train, y_val, y_test,
+                                               encode_labels, verbose=verbose)
+
+    # Scale
+    if scaling:
+        X_train, X_val, X_test = scale_features(X_train, X_val, X_test, scaler_type=scaler_type)
+
+    # Convert to torch if asked
+    if return_as == "tensor":
+        X_train, X_val, X_test = map(lambda arr: torch.tensor(arr, dtype=torch.float32),
+                                     [X_train, X_val, X_test])
+        if task_type == "classification":
+            y_train = torch.tensor(y_train, dtype=torch.long)
+            y_val   = torch.tensor(y_val, dtype=torch.long)
+            y_test  = torch.tensor(y_test, dtype=torch.long)
+        else:
+            y_train = torch.tensor(y_train, dtype=torch.float32)
+            y_val   = torch.tensor(y_val, dtype=torch.float32)
+            y_test  = torch.tensor(y_test, dtype=torch.float32)
+
+    return X_train, y_train, X_val, y_val, X_test, y_test
 
 def convert_to_tensor(X_train, X_val, X_test, y_train, y_val, y_test, return_as='tensor', task_type='classification'):
     """Converts data to PyTorch tensors, handling regression vs classification."""
@@ -106,49 +205,6 @@ def convert_to_tensor(X_train, X_val, X_test, y_train, y_val, y_test, return_as=
             raise ValueError(f"Unsupported task_type: {task_type}")
 
     return X_train, X_val, X_test, y_train, y_val, y_test
-
-def get_preprocessed_data(dataset_id=334, scaling=True, 
-                          scaler_type='standard', 
-                          categorical_strategy='label',
-                          return_as='tensor', random_seed=None, X=None, y=None, task_type='classification',
-                          verbose=False
-                          ):
-    """Full pipeline to load, preprocess, and return dataset."""
-    
-    if dataset_id is not None:
-        # Load data
-        X, y = load_openml_dataset(dataset_id, verbose=verbose)
-    
-    X = X.copy()
-    y = y.copy()
-
-    # Convert categorical features to numeric
-    X = preprocess_features(X, categorical_strategy, verbose=verbose)
-
-    # Convert target variable if needed
-    if task_type == 'classification':
-        encode_labels = True
-    else: encode_labels = False
-
-    y = preprocess_target(y, encode_labels, verbose=verbose)
-
-    # Split the dataset
-    X_train, X_val, X_test, y_train, y_val, y_test = split_data(X, y, random_seed=random_seed)
-
-    # Scale features if needed
-    if scaling:
-        X_train, X_val, X_test = scale_features(X_train, X_val, X_test, scaler_type=scaler_type)
-
-    # Convert to tensors if required
-    X_train, X_val, X_test, y_train, y_val, y_test = convert_to_tensor(
-        X_train, X_val, X_test, y_train, y_val, y_test, return_as, task_type=task_type
-    )
-
-    if verbose:
-        print(f'Data loaded successfully! Format: {return_as}')
-        print(f'Training data shape: {X_train.shape}')
-        print(f'y_training data shape: {y_train.shape}')
-    return X_train, y_train, X_val, y_val, X_test, y_test
 
 
 

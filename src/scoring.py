@@ -1,4 +1,4 @@
-import numpy as np
+# import numpy as np
 
 def check_higher_than_baseline(candidates, baseline_metric):
     active_individuals = candidates.keys()
@@ -8,87 +8,106 @@ def check_higher_than_baseline(candidates, baseline_metric):
         
         candidate.log_metric("fcst_greater_than_baseline", value=last_fcst_acc >= baseline_metric)
 
+import numpy as np
 
-def score_individuals(candidates, baseline_metric):
+EPS = 1e-8
+
+def sigmoid_prob(fcst, slope, var, goal, temp=0.05,
+                 slope_penalty_scale=5.0, var_penalty_scale=1.0):
+    margin = fcst - goal
+    slope_factor = np.exp(-max(0.0, slope) * slope_penalty_scale)
+    penalty = slope_penalty_scale * 0.1 * slope_factor + var_penalty_scale * var
+    adjusted_margin = margin - penalty
+    prob = 1.0 / (1.0 + np.exp(-adjusted_margin / (temp + EPS)))
+    return float(np.clip(prob, 0.0, 1.0))
+
+
+def mc_prob(fcst, var, goal, n_samples=500, min_std=1e-3):
+    std = max(min_std, np.sqrt(max(var, 0.0)))
+    samples = np.random.normal(loc=fcst, scale=std, size=n_samples)
+    return float(np.mean(samples > goal))
+
+
+def compute_p_above_goal(candidate, goal,
+                         alpha=0.7, temp=0.05,
+                         mc_samples=500):
+    fcst = candidate.metrics.get("forecasted_val_acc", 0.0)
+    slope = candidate.metrics.get("slope_val_acc", 0.0)
+    var = candidate.metrics.get("var_val_acc", 0.0)
+
+    s_prob = sigmoid_prob(fcst, slope, var, goal, temp=temp)
+    m_prob = mc_prob(fcst, var, goal, n_samples=mc_samples)
+    p = alpha * m_prob + (1.0 - alpha) * s_prob
+    return float(np.clip(p, 0.0, 1.0))
+
+
+def score_individuals(candidates, baseline_metric,
+                      rescale_method="minmax", temperature=1.0):
     """
-    Score individuals with *optimistic tilt*.
-    - Reward forecast, slope, and variance-as-potential.
-    - Baseline is a soft margin, not a guillotine.
+    Score individuals using their pre-computed probability (p_above_goal).
+    Rescales across the population so evolution has selection pressure.
     """
+    # Gather probabilities
+    keys = list(candidates.keys())
+    probs = np.array([candidates[k].metrics.get("p_above_goal", 0.0) for k in keys], dtype=float)
 
-    for i, candidate in candidates.items():
-        last_val_acc = candidate.get_metric('val', 'acc', last_only=True) or 0.0
-        last_fcst_acc = candidate.metrics.get("forecasted_val_acc", last_val_acc)
-        slope = candidate.metrics.get("slope_val_acc", 0.0)
-        variance = candidate.metrics.get("var_val_acc", 0.0)
-        gap = candidate.metrics.get("gap_val_acc", 0.0)
+    # Rescale
+    if rescale_method == "softmax":
+        probs_clipped = np.clip(probs, 1e-9, 1 - 1e-9)
+        logits = np.log(probs_clipped / (1 - probs_clipped))
+        scaled = logits / max(1e-6, temperature)
+        exps = np.exp(scaled - np.max(scaled))
+        scores = exps / (exps.sum() + EPS)
 
-        # Smooth baseline influence
-        fcst_gap = last_fcst_acc - (baseline_metric or 0.0)
+    elif rescale_method == "minmax":
+        lo, hi = probs.min(), probs.max()
+        if hi - lo < 1e-12:
+            scores = np.ones_like(probs) / len(probs)
+        else:
+            scaled = (probs - lo) / (hi - lo)
+            scores = scaled / (scaled.sum() + EPS)
 
-        # Optimistic scoring:
-        # - Forecast is king
-        # - Slope still matters
-        # - Variance is potential, not punishment
-        score = (
-            0.6 * last_fcst_acc +
-            0.25 * slope +
-            0.15 * fcst_gap +
-            0.1 * np.sqrt(max(0.0, variance))  # variance as potential energy
-        )
+    elif rescale_method == "rank":
+        ranks = np.argsort(np.argsort(-probs)).astype(float)
+        scores = 1.0 - (ranks / max(1.0, (len(probs)-1)))
+        scores = scores / (scores.sum() + EPS)
 
-        # Always non-negative
-        score = max(0.0, float(score))
+    else:
+        raise ValueError("Unknown rescale method")
 
-        candidate.log_metric('score', value=score)
+    # Assign back
+    for i, key in enumerate(keys):
+        candidates[key].metrics["score"] = float(scores[i])
 
 
-def get_worst_individuals(population, baseline_metric, 
+def get_worst_individuals(population, baseline_metric,
                           percentile_drop=15):
     """
-    Identify worst individuals to drop.
-
-    Rules:
-    - If forecasts exist, drop those below baseline first.
-    - If no forecasts, rank by raw val_acc.
-    - Always preserve top 10% (elites).
+    Drop the worst individuals based on p_above_goal.
+    Always preserve elites (top 10% by last_val_acc).
     """
     n_worst = max(1, int(population.size * percentile_drop / 100))
-    elite_count = max(1, int(0.1 * population.size))  # preserve 10%
+    elite_count = max(1, int(0.1 * population.size))
 
-    # Build list of candidates
+    # Gather candidates
     candidates = []
     for key, cand in population.candidates.items():
-        val_acc = cand.get_metric('val', 'acc', last_only=True)
-        fcst_acc = cand.metrics.get("forecasted_val_acc", None)
-        score = cand.metrics.get("score", None)
-        candidates.append((key, val_acc, fcst_acc, score))
+        val_acc = cand.get_metric('val', 'acc', last_only=True) or 0.0
+        prob = cand.metrics.get("p_above_goal", 0.0)
+        candidates.append((key, val_acc, prob))
 
-    # Separate forecasted vs non-forecasted
-    with_fcst = [c for c in candidates if c[2] is not None]
-    without_fcst = [c for c in candidates if c[2] is None]
+    # Sort by probability ascending (lowest chance of beating baseline = worst)
+    sorted_by_prob = sorted(candidates, key=lambda x: x[2])
 
-    # Case 1: forecasts exist
-    if with_fcst:
-        below_baseline = [k for k, v, f, s in with_fcst if f < (baseline_metric or 0)]
-        sorted_all = sorted(candidates, key=lambda x: (x[3] if x[3] is not None else 0))
-    # Case 2: no forecasts → fallback to val_acc
-    else:
-        below_baseline = []
-        sorted_all = sorted(candidates, key=lambda x: (x[1] if x[1] is not None else 0))
+    # Identify elites: top 10% by validation accuracy
+    elites = {
+        k for k, v, p in sorted(candidates, key=lambda x: x[1], reverse=True)[:elite_count]
+    }
 
-    # Identify elites (top 10% by val_acc)
-    elites = {k for k, v, f, s in sorted(candidates, key=lambda x: (x[1] or 0), reverse=True)[:elite_count]}
-
-    # Build worst list
+    # Collect worst individuals, skipping elites
     worst = []
-    # Drop below-baseline first
-    for k in below_baseline:
+    for k, v, p in sorted_by_prob:
         if k not in elites and len(worst) < n_worst:
-            worst.append(k)
-    # Fill rest with lowest scorers
-    for k, v, f, s in sorted_all:
-        if k not in elites and k not in worst and len(worst) < n_worst:
             worst.append(k)
 
     population.worst_individuals = worst

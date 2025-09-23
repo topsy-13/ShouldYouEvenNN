@@ -1,0 +1,57 @@
+,pipeline,accuracy
+30,"Pipeline(steps=[('data-pre-processor', Normalizer()),
+                ('feature-pre-processor', SelectPercentile()),
+                ('learner', HistGradientBoostingClassifier())])",0.7482
+17,"Pipeline(steps=[('data-pre-processor', Normalizer()),
+                ('learner', HistGradientBoostingClassifier())])",0.7428
+2,"Pipeline(steps=[('learner', HistGradientBoostingClassifier())])",0.7424
+22,"Pipeline(steps=[('data-pre-processor', VarianceThreshold()),
+                ('learner', HistGradientBoostingClassifier())])",0.7424
+10,"Pipeline(steps=[('learner', SVC())])",0.7416
+1,"Pipeline(steps=[('learner', RandomForestClassifier())])",0.7359
+0,"Pipeline(steps=[('learner', ExtraTreesClassifier())])",0.7324
+28,"Pipeline(steps=[('data-pre-processor', Normalizer()),
+                ('feature-pre-processor', PCA()),
+                ('learner', HistGradientBoostingClassifier())])",0.6982
+6,"Pipeline(steps=[('learner', KNeighborsClassifier())])",0.6801
+12,"Pipeline(steps=[('learner', SVC(kernel='sigmoid'))])",0.6724
+5,"Pipeline(steps=[('learner', GaussianNB())])",0.6709
+13,"Pipeline(steps=[('learner', LogisticRegression())])",0.6674
+11,"Pipeline(steps=[('learner', SVC(kernel='poly'))])",0.6674
+3,"Pipeline(steps=[('learner', BernoulliNB())])",0.6651
+7,"Pipeline(steps=[('learner', LinearDiscriminantAnalysis())])",0.6628
+9,"Pipeline(steps=[('learner', SVC(kernel='linear'))])",0.6617
+31,"Pipeline(steps=[('data-pre-processor', Normalizer()),
+                ('feature-pre-processor', GenericUnivariateSelect()),
+                ('learner', HistGradientBoostingClassifier())])",0.6382
+4,"Pipeline(steps=[('learner', DecisionTreeClassifier())])",0.6378
+8,"Pipeline(steps=[('learner', QuadraticDiscriminantAnalysis())])",0.5736
+15,"Pipeline(steps=[('learner', MultinomialNB())])",
+16,"Pipeline(steps=[('data-pre-processor', MinMaxScaler()),
+                ('learner', HistGradientBoostingClassifier())])",
+18,"Pipeline(steps=[('data-pre-processor', PowerTransformer()),
+                ('learner', HistGradientBoostingClassifier())])",
+19,"Pipeline(steps=[('data-pre-processor', QuantileTransformer()),
+                ('learner', HistGradientBoostingClassifier())])",
+20,"Pipeline(steps=[('data-pre-processor', RobustScaler()),
+                ('learner', HistGradientBoostingClassifier())])",
+21,"Pipeline(steps=[('data-pre-processor', StandardScaler()),
+                ('learner', HistGradientBoostingClassifier())])",
+23,"Pipeline(steps=[('data-pre-processor', Normalizer()),
+                ('feature-pre-processor', FastICA()),
+                ('learner', HistGradientBoostingClassifier())])",
+24,"Pipeline(steps=[('data-pre-processor', Normalizer()),
+                ('feature-pre-processor', FeatureAgglomeration()),
+                ('learner', HistGradientBoostingClassifier())])",
+25,"Pipeline(steps=[('data-pre-processor', Normalizer()),
+                ('feature-pre-processor', KernelPCA()),
+                ('learner', HistGradientBoostingClassifier())])",
+26,"Pipeline(steps=[('data-pre-processor', Normalizer()),
+                ('feature-pre-processor', RBFSampler()),
+                ('learner', HistGradientBoostingClassifier())])",
+27,"Pipeline(steps=[('data-pre-processor', Normalizer()),
+                ('feature-pre-processor', Nystroem()),
+                ('learner', HistGradientBoostingClassifier())])",
+29,"Pipeline(steps=[('data-pre-processor', Normalizer()),
+                ('feature-pre-processor', PolynomialFeatures()),
+                ('learner', HistGradientBoostingClassifier())])",

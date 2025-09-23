@@ -1,0 +1,16 @@
+,pipeline,accuracy
+10,"Pipeline(steps=[('learner', SVC())])",0.7733
+7,"Pipeline(steps=[('learner', LinearDiscriminantAnalysis())])",0.7667
+9,"Pipeline(steps=[('learner', SVC(kernel='linear'))])",0.7667
+11,"Pipeline(steps=[('learner', SVC(kernel='poly'))])",0.765
+13,"Pipeline(steps=[('learner', LogisticRegression())])",0.7633
+5,"Pipeline(steps=[('learner', GaussianNB())])",0.7583
+8,"Pipeline(steps=[('learner', QuadraticDiscriminantAnalysis())])",0.75
+1,"Pipeline(steps=[('learner', RandomForestClassifier())])",0.7483
+0,"Pipeline(steps=[('learner', ExtraTreesClassifier())])",0.7433
+2,"Pipeline(steps=[('learner', HistGradientBoostingClassifier())])",0.7433
+12,"Pipeline(steps=[('learner', SVC(kernel='sigmoid'))])",0.74
+6,"Pipeline(steps=[('learner', KNeighborsClassifier())])",0.7383
+3,"Pipeline(steps=[('learner', BernoulliNB())])",0.7333
+4,"Pipeline(steps=[('learner', DecisionTreeClassifier())])",0.725
+15,"Pipeline(steps=[('learner', MultinomialNB())])",

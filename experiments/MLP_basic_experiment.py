@@ -13,14 +13,13 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import accuracy_score
 
 import data_preprocessing as dp
-from utils import set_seed
 
 # endregion
 
 
 def main(data_id, seed):
     exp_id = f'{data_id}_{seed}'
-
+    print('Testing Standard MLP experiment...')
     mlp_results = {
         'seed': seed,
         'data_id': data_id
@@ -31,8 +30,10 @@ def main(data_id, seed):
         scaling=True,
         random_seed=seed,
         return_as='tensor',
-        task_type='classification'
-        )
+        task_type='classification',
+        categorical_strategy='label', 
+        verbose=False
+    )
 
     X_analysis = torch.cat([X_train, X_val], dim=0)
     y_analysis = torch.cat([y_train, y_val], dim=0)
@@ -41,26 +42,26 @@ def main(data_id, seed):
     mlp = MLPClassifier(random_state=seed, max_iter=1000, n_iter_no_change=100)
     # defaults: hidden_layer_sizes=(100,), activation='relu', solver='adam', max_iter=200
 
-    mlp.fit(X_train, y_train) # ? Analysis or training data
+    mlp.fit(X_analysis, y_analysis) # ? Analysis or training data
     
     # Predict
-    y_pred_train = mlp.predict(X_train)
-    y_pred_val = mlp.predict(X_val)
+    y_pred_train = mlp.predict(X_analysis)
     y_pred_test = mlp.predict(X_test)
+    # y_pred_test = mlp.predict(X_test)
 
     # Results
     mlp_results['time_taken'] = time.time() - mlp_start_time
-    mlp_results['train_acc'] = accuracy_score(y_train, y_pred_train)
-    mlp_results['val_acc'] = accuracy_score(y_val, y_pred_val)
+    mlp_results['train_acc'] = accuracy_score(y_analysis, y_pred_train)
+    # mlp_results['val_acc'] = accuracy_score(y_val, y_pred_val)
     mlp_results['test_acc'] = accuracy_score(y_test, y_pred_test)
     mlp_results['train_loss'] = mlp.loss_
 
-    mlp_path = f'./experiments/ebe_vs/standard_models/standard_MLP'
+    mlp_path = f'./experiments/ebe_vs/v2/standard'
     with open(f"{mlp_path}/{exp_id}_MLP.json", 'w') as json_file:
         json.dump(mlp_results, json_file, indent=4)
     
     print('  -MLP results exported')
 
 
-if __name__ == "__main__":
-    main(data_id=54, seed=13)    
+# if __name__ == "__main__":
+#     main(data_id=54, seed=13)    

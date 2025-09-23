@@ -17,10 +17,9 @@ from ebe import Population
 
 
 def main(data_id=54, seed=12,
-         n_individuals=50, 
-         starting_instances_proportion=0.1,
-         percentile_drop=10,
-         time_budget_factor=10):
+         n_individuals=25, starting_instances_proportion=0.1,
+         percentile_drop=15,
+         time_budget_factor=3):
     
     # region Set the scenario
     DATA_ID = data_id
@@ -35,8 +34,10 @@ def main(data_id=54, seed=12,
         scaling=True,
         random_seed=SEED,
         return_as='tensor',
-        task_type='classification'
-        )
+        task_type='classification',
+        categorical_strategy='label', 
+        verbose=False
+    )
     
     # Get data from the json results of the Naive Experiment
     starting_path = './experiments/ebe_vs/v2'
@@ -81,16 +82,21 @@ def main(data_id=54, seed=12,
                         epoch_threshold=3,
                         track_all_models=True,
                         forecast_method='rational'
-                    
                         )
+    
     ebe_end_time = time.time()
     ebe_time_taken = ebe_end_time - ebe_start_time
+    final_decision = population.final_decision()
     # Reporting section
     ebe_results_all = population.cumulative_ledger
 
     n_candidates_higher_fcsted = len(ebe_results_all
                                    [ebe_results_all['fcst_greater_than_baseline'] 
                                     == True])
+    # Prob approach
+    mean_prob_above_goal = ebe_results_all['p_above_goal'].mean()
+    max_prob_above_goal = ebe_results_all['p_above_goal'].max()
+    median_prob_above_goal = ebe_results_all['p_above_goal'].median()
     
     max_ebe_train_acc = ebe_results_final['train_acc'].apply(max).max()
     max_ebe_val_acc = ebe_results_final['val_acc'].apply(max).max()
@@ -98,14 +104,17 @@ def main(data_id=54, seed=12,
     ebe_performance = {
         'seed': SEED,
         'data_id': DATA_ID,
+        'time_factor': BUDGET_FACTOR,
         'time_budget': time_budget_ebe,
         'time_taken': ebe_time_taken,
         'naml_baseline_metric': naml_max_test_acc,
         'candidates_created': population.individuals_created,
-        'n_above_baseline_fcst': n_candidates_higher_fcsted,
+        'mean_p_above_goal': mean_prob_above_goal,
+        'median_p_above_goal': median_prob_above_goal,
+        'max_p_above_goal': max_prob_above_goal,
         'max_ebe_train_acc': max_ebe_train_acc,
-        'max_ebe_val_acc': max_ebe_val_acc
-        
+        'max_ebe_val_acc': max_ebe_val_acc,
+        **final_decision
     }
 
     # Export EBE results
@@ -120,6 +129,7 @@ def main(data_id=54, seed=12,
 
 
     return ebe_performance, ebe_results_all, ebe_results_final
+
 
 def train_by_es(n_individuals, ebe_results, seed, data_id):
     from architecture_generator import create_model_from_row
@@ -217,19 +227,18 @@ def train_by_es(n_individuals, ebe_results, seed, data_id):
     with open(f"{export_path}/{exp_id}_ES_EBE-summary.json", 'w') as json_file:
         json.dump(ebe_performance, json_file, indent=4)
 
-
     return ebe_performance
 
 
-def ebe_main(data_id, seed):
+def ebe_main(data_id, seed, time_budget_factor=3):
     ebe_performance, ebe_results_all, ebe_results_final = main(data_id=data_id, seed=seed, 
-    n_individuals=50, starting_instances_proportion=0.05, time_budget_factor=10, percentile_drop=20)
+    n_individuals=25, starting_instances_proportion=0.1, time_budget_factor=time_budget_factor, percentile_drop=15)
     print('  -EBE Results Exported')
     
-    train_by_es(data_id=data_id, seed=seed,
-        n_individuals=50, 
-        ebe_results=ebe_results_final)
-    print('  -EBE-ES Results Exported')
+    # train_by_es(data_id=data_id, seed=seed,
+    #     n_individuals=25, 
+    #     ebe_results=ebe_results_final)
+    # print('  -EBE-ES Results Exported')
     
     # endregion
 

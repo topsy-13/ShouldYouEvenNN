@@ -1,0 +1,57 @@
+,pipeline,accuracy
+22,"Pipeline(steps=[('data-pre-processor', VarianceThreshold()),
+                ('learner', ExtraTreesClassifier())])",0.7026
+0,"Pipeline(steps=[('learner', ExtraTreesClassifier())])",0.7003
+1,"Pipeline(steps=[('learner', RandomForestClassifier())])",0.6935
+7,"Pipeline(steps=[('learner', LinearDiscriminantAnalysis())])",0.6904
+23,"Pipeline(steps=[('data-pre-processor', VarianceThreshold()),
+                ('feature-pre-processor', FastICA()),
+                ('learner', ExtraTreesClassifier())])",0.6859
+2,"Pipeline(steps=[('learner', HistGradientBoostingClassifier())])",0.6796
+12,"Pipeline(steps=[('learner', SVC(kernel='sigmoid'))])",0.6725
+10,"Pipeline(steps=[('learner', SVC())])",0.6722
+4,"Pipeline(steps=[('learner', DecisionTreeClassifier())])",0.648
+17,"Pipeline(steps=[('data-pre-processor', Normalizer()),
+                ('learner', ExtraTreesClassifier())])",0.6366
+13,"Pipeline(steps=[('learner', LogisticRegression())])",0.6318
+6,"Pipeline(steps=[('learner', KNeighborsClassifier())])",0.6295
+9,"Pipeline(steps=[('learner', SVC(kernel='linear'))])",0.6012
+3,"Pipeline(steps=[('learner', BernoulliNB())])",0.5804
+28,"Pipeline(steps=[('data-pre-processor', VarianceThreshold()),
+                ('feature-pre-processor', PCA()),
+                ('learner', ExtraTreesClassifier())])",0.5387
+30,"Pipeline(steps=[('data-pre-processor', VarianceThreshold()),
+                ('feature-pre-processor', SelectPercentile()),
+                ('learner', ExtraTreesClassifier())])",0.5076
+5,"Pipeline(steps=[('learner', GaussianNB())])",0.5058
+11,"Pipeline(steps=[('learner', SVC(kernel='poly'))])",0.3907
+31,"Pipeline(steps=[('data-pre-processor', VarianceThreshold()),
+                ('feature-pre-processor', GenericUnivariateSelect()),
+                ('learner', ExtraTreesClassifier())])",0.2398
+8,"Pipeline(steps=[('learner', QuadraticDiscriminantAnalysis())])",0.1849
+24,"Pipeline(steps=[('data-pre-processor', VarianceThreshold()),
+                ('feature-pre-processor', FeatureAgglomeration()),
+                ('learner', ExtraTreesClassifier())])",0.1694
+15,"Pipeline(steps=[('learner', MultinomialNB())])",
+16,"Pipeline(steps=[('data-pre-processor', MinMaxScaler()),
+                ('learner', ExtraTreesClassifier())])",
+18,"Pipeline(steps=[('data-pre-processor', PowerTransformer()),
+                ('learner', ExtraTreesClassifier())])",
+19,"Pipeline(steps=[('data-pre-processor', QuantileTransformer()),
+                ('learner', ExtraTreesClassifier())])",
+20,"Pipeline(steps=[('data-pre-processor', RobustScaler()),
+                ('learner', ExtraTreesClassifier())])",
+21,"Pipeline(steps=[('data-pre-processor', StandardScaler()),
+                ('learner', ExtraTreesClassifier())])",
+25,"Pipeline(steps=[('data-pre-processor', VarianceThreshold()),
+                ('feature-pre-processor', KernelPCA()),
+                ('learner', ExtraTreesClassifier())])",
+26,"Pipeline(steps=[('data-pre-processor', VarianceThreshold()),
+                ('feature-pre-processor', RBFSampler()),
+                ('learner', ExtraTreesClassifier())])",
+27,"Pipeline(steps=[('data-pre-processor', VarianceThreshold()),
+                ('feature-pre-processor', Nystroem()),
+                ('learner', ExtraTreesClassifier())])",
+29,"Pipeline(steps=[('data-pre-processor', VarianceThreshold()),
+                ('feature-pre-processor', PolynomialFeatures()),
+                ('learner', ExtraTreesClassifier())])",

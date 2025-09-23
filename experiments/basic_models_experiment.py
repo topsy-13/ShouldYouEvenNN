@@ -22,12 +22,14 @@ def main(data_id=54, seed=13):
     exp_id = f'{data_id}_{seed}'
 
     X_train, y_train, X_val, y_val, X_test, y_test = dp.get_preprocessed_data(
-            dataset_id=data_id,
-            scaling=True,
-            random_seed=seed,
-            return_as='tensor',
-            task_type='classification'
-            )
+        dataset_id=data_id,
+        scaling=True,
+        random_seed=seed,
+        return_as='tensor',
+        task_type='classification',
+        categorical_strategy='label', 
+        verbose=False
+    )
     X_analysis = torch.cat([X_train, X_val], dim=0)
     y_analysis = torch.cat([y_train, y_val], dim=0)
 
@@ -66,6 +68,7 @@ def main(data_id=54, seed=13):
         # Timer for all models
         total_start_time = time.time()
         for name, model in models.items():
+            print(f'  -Training {name}...')
             start_time = time.time()
             model.fit(X_analysis, y_analysis)
             train_time = time.time() - start_time

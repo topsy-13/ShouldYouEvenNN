@@ -1,39 +1,43 @@
 import random 
 import numpy as np
 from utils import set_seed
+from numpy.random import choice
 
 
-def weighted_random_selection(candidates, k=2, seed=None):
-        """
-        Select k candidates based on weighted probabilities from fitness scores.
-        Higher fitness = higher probability of being chosen.
-        Falls back to uniform selection if not enough non-zero probabilities.
-        """
-        if seed is None:
-            seed = random.randint(0, 100000)
-        
-        set_seed(seed)
-        candidates_pool = list(candidates.keys())
-        
-        # Extract scores
-        scores = np.array([candidates[i].metrics['score'] for i in candidates_pool], dtype=float)
-        
-        # Normalize scores to get probabilities
-        total = scores.sum()
-        if total > 0:
-            probabilities = scores / total
-        else:
-            probabilities = np.zeros_like(scores)
-        
-        # Handle edge case: fewer non-zero probabilities than k
-        nonzero_candidates = [c for c, prob in zip(candidates_pool, probabilities) if prob > 0]
-        if len(nonzero_candidates) < k:
-            # fallback to uniform random selection
-            selected_indices = np.random.choice(candidates_pool, size=k, replace=False)
-        else:
-            selected_indices = np.random.choice(candidates_pool, size=k, replace=False, p=probabilities)
-        
-        return [candidates[i] for i in selected_indices]
+def weighted_random_selection(candidates, n_parents=2, seed=None):
+    """
+    Select parents based on their probability-derived scores.
+    - Uses candidate.metrics["score"], already normalized in scoring.py
+    """
+    EPS = 1e-8
+
+    seed = seed if seed is not None else random.randint(0, 100000)
+    _, _ = set_seed(seed)
+    
+    keys = list(candidates.keys())
+    scores = np.array([candidates[k].metrics.get("score", 0.0) for k in keys], dtype=float)
+
+    # Normalize to sum=1 (just in case scoring step didn't)
+    if scores.sum() <= 0:
+        scores = np.ones_like(scores) / len(scores)
+    else:
+        scores = scores / (scores.sum() + EPS)
+
+    selected_keys = choice(keys, size=n_parents, replace=False, p=scores)
+    return [candidates[k] for k in selected_keys]
+
+
+def select_elites(candidates, elite_fraction=0.1):
+    """
+    Select elites purely by validation accuracy (last epoch).
+    """
+    n_elites = max(1, int(elite_fraction * candidates.size))
+    sorted_cands = sorted(
+        candidates.values(),
+        key=lambda c: c.get_metric('val', 'acc', last_only=True) or 0.0,
+        reverse=True
+    )
+    return sorted_cands[:n_elites]
 
 
 def crossover(parent1, parent2, seed=None):

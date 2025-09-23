@@ -14,7 +14,7 @@ import json
 
 
 # from baseline_models import get_models_and_baseline_metric
-from forecaster import forecast_generation
+from forecaster import forecast_generation, annotate_probabilities
 from utils import set_seed
 from candidates import Candidate
 from evolution import breed_and_mutate
@@ -200,7 +200,7 @@ class Population():
     def run_generation(self,
                        X_train, y_train, X_val, y_val,
                        percentile_drop=5, goal_metric=None,
-                       epoch_threshold=5, forecast_method='rational',
+                       epoch_threshold=3, forecast_method='rational',
                        track_all_models=False):
 
 
@@ -209,7 +209,8 @@ class Population():
         self.train_generation(X_train, y_train)
         self.validate_generation(X_val, y_val)
         forecast_generation(self.candidates, effort_threshold=epoch_threshold, method=forecast_method)
-        check_higher_than_baseline(self.candidates, baseline_metric=goal_metric)
+        check_higher_than_baseline(self.candidates, baseline_metric=goal_metric) # Deprecated since unreliable
+        annotate_probabilities(self.candidates, goal_metric=goal_metric)
         score_individuals(self.candidates, baseline_metric=goal_metric)
         self.current_snapshot = self.build_ledger()
 
@@ -223,8 +224,8 @@ class Population():
             )
             
         get_worst_individuals(self, 
-                              baseline_metric=goal_metric,
-                              percentile_drop=percentile_drop)
+                              percentile_drop=percentile_drop,
+                              baseline_metric=goal_metric)
         self.drop_worst_individuals()
 
         return self.candidates
@@ -251,6 +252,7 @@ class Population():
 
             if elapsed_time >= time_budget:
                 print(f"Time budget exceeded at epoch {epoch + 1}: {elapsed_time:.2f} seconds")
+                
                 if epoch <= self.epoch_threshold - 1:
                     print("Try to reduce the number of candidates or increase the time budget.")
                     raise TimeoutError("Not enough epochs completed for forecasting, stopping EBE.")
@@ -274,6 +276,8 @@ class Population():
             percentile_drop = min(percentile_drop + 2, 30)
         
             self.generations_completed += 1
+        
+        self.decision, self.eu, self.p, self.benefit = self.worth_training_neural_bayes(baseline_metric=baseline_metric)
         print("EBE process completed.")
 
         return self.current_snapshot  # return the latest by default
@@ -293,3 +297,31 @@ class Population():
             return json.dumps(current_candidates, indent=4)
 
 
+    def worth_training_neural_bayes(self, baseline_metric, cost=0.5):
+        """
+        Bayes decision rule with dynamic benefit:
+        benefit = forecasted_val_acc - baseline_metric
+        
+        Decision: train if expected utility (EU) > 0.
+        """
+        best_cand = max(self.candidates.values(),
+                        key=lambda c: c.metrics.get("p_above_goal", 0.0))
+        
+        p = best_cand.metrics.get("p_above_goal", 0.0)
+        fcst = best_cand.metrics.get("forecasted_val_acc", 0.0)
+        
+        # Dynamic benefit: how much better than baseline it might be
+        benefit = max(0.0, fcst - baseline_metric)
+        
+        EU = p * benefit - (1 - p) * cost
+        return EU > 0, EU, p, benefit
+
+    def final_decision(self):
+
+        return {
+            'ShouldYouEvenNN?': self.decision,
+            'Exp. Utility': self.eu,
+            'p_above_goal': self.p,
+            'benefit': self.benefit
+        }
+        

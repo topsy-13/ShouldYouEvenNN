@@ -1,0 +1,16 @@
+{
+    "seed": 14125,
+    "data_id": 40668,
+    "time_factor": 23,
+    "time_budget": 20.77604365348816,
+    "time_taken": 41.043121576309204,
+    "naml_baseline_metric": 0.8281527531083481,
+    "candidates_created": 32,
+    "n_above_baseline_fcst": 12,
+    "max_ebe_train_acc": 0.6596113809854268,
+    "max_ebe_val_acc": 0.6540845591636599,
+    "ShouldYouEvenNN?": false,
+    "Exp. Utility": -0.10469263996674885,
+    "p_above_goal": 0.7000496534993506,
+    "benefit": 0.06468474494233556
+}

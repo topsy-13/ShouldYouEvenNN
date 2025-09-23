@@ -86,7 +86,7 @@ def main(data_id=54, seed=13, naive_models=50,
     print("Time budget assigned for EBE:", nn_time_budget)
 
     # Export scoreboard for later analysis
-    directory = f'experiments/ebe_vs_oracle/naml_baseline-models'
+    directory = f'experiments/ebe_vs/v2/oracle/naml_baseline-models'
     os.makedirs(directory, exist_ok=True)
     with open(os.path.join(directory, f"{DATA_ID}.json"), 'w') as json_file:
         json.dump(naml_results, json_file, indent=4)

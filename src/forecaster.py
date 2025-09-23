@@ -131,3 +131,40 @@ def forecast_generation(candidates, effort_threshold=3,
         candidate.metrics["slope_val_acc"] = slope
         candidate.metrics["var_val_acc"] = variance
         candidate.metrics["gap_val_acc"] = last_gap
+
+EPS = 1e-8
+
+def sigmoid_prob(fcst, slope, var, goal, temp=0.05,
+                 slope_penalty_scale=5.0, var_penalty_scale=1.0):
+    margin = fcst - goal
+    slope_factor = np.exp(-max(0.0, slope) * slope_penalty_scale)
+    penalty = slope_penalty_scale * 0.1 * slope_factor + var_penalty_scale * var
+    adjusted_margin = margin - penalty
+    prob = 1.0 / (1.0 + np.exp(-adjusted_margin / (temp + EPS)))
+    return float(np.clip(prob, 0.0, 1.0))
+
+
+def mc_prob(fcst, var, goal, n_samples=500, min_std=1e-3):
+    std = max(min_std, np.sqrt(max(var, 0.0)))
+    samples = np.random.normal(loc=fcst, scale=std, size=n_samples)
+    return float(np.mean(samples > goal))
+
+
+def annotate_probabilities(candidates, goal_metric,
+                           alpha=0.7, temp=0.05, mc_samples=500):
+    """
+    Annotate each candidate with probability of surpassing the goal.
+    Stores p_above_goal, p_sigmoid, and p_mc in candidate.metrics.
+    """
+    for i, candidate in candidates.items():
+        fcst = candidate.metrics.get("forecasted_val_acc", 0.0)
+        slope = candidate.metrics.get("slope_val_acc", 0.0)
+        var = candidate.metrics.get("var_val_acc", 0.0)
+
+        p_s = sigmoid_prob(fcst, slope, var, goal_metric, temp=temp)
+        p_m = mc_prob(fcst, var, goal_metric, n_samples=mc_samples)
+        p = alpha * p_m + (1.0 - alpha) * p_s
+
+        candidate.metrics["p_sigmoid"] = p_s
+        candidate.metrics["p_mc"] = p_m
+        candidate.metrics["p_above_goal"] = float(np.clip(p, 0.0, 1.0))

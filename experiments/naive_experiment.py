@@ -19,12 +19,14 @@ def main(data_id, seed):
     exp_id = f'{data_id}_{seed}'
 
     X_train, y_train, X_val, y_val, X_test, y_test = dp.get_preprocessed_data(
-            dataset_id=data_id,
-            scaling=True,
-            random_seed=seed,
-            return_as='tensor',
-            task_type='classification'
-            )
+        dataset_id=data_id,
+        scaling=True,
+        random_seed=seed,
+        return_as='tensor',
+        task_type='classification',
+        categorical_strategy='label', 
+        verbose=False
+    )
     X_analysis = torch.cat([X_train, X_val], dim=0)
     y_analysis = torch.cat([y_train, y_val], dim=0)
 
@@ -67,7 +69,15 @@ def main(data_id, seed):
     print('  -Naive results exported')    
 
 if __name__ == "__main__":
-    main(data_id=54, seed=13)
+    # Datasets to test
+    SEED = 14125
+    dataset_ids_path = 'experiments/datasets/openml_datasets.json'
+    with open(dataset_ids_path) as f:
+        dataset_ids = json.load(f)
+    for dataset_name, data_id in dataset_ids.items():
+        print(f"Starting dataset {data_id} - {dataset_name}")
+        main(data_id=data_id, seed=SEED)
+    print('All done for Naive!')    
 
 
 

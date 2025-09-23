@@ -1,0 +1,8 @@
+{
+    "seed": 14125,
+    "data_id": 1067,
+    "training_time": 60.645607709884644,
+    "max_test_acc": 0.8530805687203792,
+    "min_test_loss": 0.39909021245642295,
+    "best_model_id": 2
+}
