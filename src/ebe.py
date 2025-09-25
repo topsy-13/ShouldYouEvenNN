@@ -1,33 +1,59 @@
-import numpy as np
-import random
+"""Evolutionary Bayesian Exploration (EBE) orchestration helpers."""
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import pandas as pd
+from __future__ import annotations
+
 import gc
-import data_preprocessing as dp
-from instance_sampling import sample_data
-
-import time
 import json
+import time
+from typing import Any, Dict, Optional, Union
 
+import numpy as np
+import pandas as pd
+import torch
 
-# from baseline_models import get_models_and_baseline_metric
-from forecaster import forecast_generation, annotate_probabilities
+import data_preprocessing as dp
 from candidates import Candidate
 from evolution import breed_and_mutate
-from scoring import score_individuals, convex_lb_discard, compute_and_log_p_above_goal, check_higher_than_baseline
+from forecaster import forecast_generation
+from instance_sampling import sample_data
+from scoring import (
+    check_higher_than_baseline,
+    compute_and_log_p_above_goal,
+    convex_lb_discard,
+    score_individuals,
+)
 from utils import init_global_seed, make_repro_context
+
+
+def _ensure_tensor(data, *, reference: Optional[torch.Tensor] = None) -> torch.Tensor:
+    """Cast ``data`` to a tensor, mirroring ``reference`` dtype when available."""
+
+    if isinstance(data, torch.Tensor):
+        return data
+
+    tensor = torch.as_tensor(data)
+    if isinstance(reference, torch.Tensor):
+        tensor = tensor.to(dtype=reference.dtype)
+    elif tensor.dtype == torch.float64:
+        tensor = tensor.to(dtype=torch.float32)
+    return tensor
 
 # region Generations
 
 class Population:
-    def __init__(self, search_space, size, 
-                 starting_instances=0.1, seed=None, task_type='classification'):
-        self.seed = seed or np.random.default_rng().integers(0, 1_000_000)
-        init_global_seed(self.seed)                 # one-time init
-        self.repro = make_repro_context(self.seed)  # shared RNGs
+    """Maintain a population of neural architectures under the EBE loop."""
+
+    def __init__(
+        self,
+        search_space,
+        size,
+        starting_instances: Union[int, float] = 100,
+        seed: Optional[int] = None,
+        task_type: str = "classification",
+    ) -> None:
+        self.seed = int(seed if seed is not None else np.random.default_rng().integers(0, 1_000_000))
+        init_global_seed(self.seed)
+        self.repro = make_repro_context(self.seed)
 
         self.task_type = task_type
         self.search_space = search_space
@@ -38,18 +64,31 @@ class Population:
         self.candidates = self.spawn_candidates()
         self.initial_ledger = self.build_ledger().copy(deep=True)
         self.generations_completed = 0
-        self.generation_logs = []
+        self.generation_logs: list[Dict[str, Any]] = []
 
 
         
 
-    def spawn_candidates(self):
-        candidates_pool = {}
-        rng = self.repro.np_rng
+    def _initial_budget(self) -> int:
+        """Return a sane starting instance budget for newly spawned models."""
+
+        budget = self.starting_instances
+        if isinstance(budget, float):
+            budget = int(budget)
+        return max(1, int(budget))
+
+    def spawn_candidates(self) -> Dict[int, Candidate]:
+        candidates_pool: Dict[int, Candidate] = {}
+        rng = self.repro.numpy_generator
         for i in range(self.size):
             arch = self.search_space.sample_architecture(rng=rng)
             model = self.search_space.create_model(arch, task_type=self.task_type)
-            candidates_pool[i] = Candidate(model, arch, starting_instances=self.starting_instances, id_counter=i)
+            candidates_pool[i] = Candidate(
+                model,
+                arch,
+                starting_instances=self._initial_budget(),
+                identifier=i,
+            )
             self.individuals_created += 1
         return candidates_pool
 
@@ -129,16 +168,16 @@ class Population:
                         model.train()
                         
 
-            # store epoch timing as list
-            if "epoch_time" not in candidate.metrics:
-                candidate.metrics["epoch_time"] = []
-            candidate.metrics["epoch_time"].append(epoch_time_acc)
-
             return epoch_time_acc
 
 
 
         """Train all candidates in the population."""
+        feature_reference = X_train if isinstance(X_train, torch.Tensor) else None
+        target_reference = y_train if isinstance(y_train, torch.Tensor) else None
+        val_features = _ensure_tensor(X_val, reference=feature_reference) if X_val is not None else None
+        val_targets = _ensure_tensor(y_val, reference=target_reference) if y_val is not None else None
+
         for i in list(self.candidates.keys()):
             candidate = self.candidates[i]
             model = candidate.model
@@ -146,20 +185,26 @@ class Population:
 
             n_instances = min(candidate.n_instances[-1], len(X_train))
 
-            # Use the shared RNG to choose indices (see sample_data change)
+            # Use the shared RNG to choose indices
             X_sampled, y_sampled = sample_data(
-                X_train, y_train, n_instances,
+                X_train,
+                y_train,
+                n_instances,
                 mode="absolute",
-                seed=None,                    # let rng drive it
+                seed=None,
                 task_type=self.task_type,
-                rng=self.repro.np_rng         # NEW
+                rng=self.repro.numpy_generator,
             )
 
+            X_sampled = _ensure_tensor(X_sampled, reference=feature_reference)
+            y_sampled = _ensure_tensor(y_sampled, reference=target_reference)
+
             train_loader = dp.create_dataloader(
-                X=X_sampled, y=y_sampled,
+                X=X_sampled,
+                y=y_sampled,
                 batch_size=batch_size,
-                generator=self.repro.torch_gen,
-                seed_worker=self.repro.seed_worker
+                generator=self.repro.torch_generator,
+                worker_init_fn=self.repro.worker_init_fn,
             )
 
             if training_mode == 'oe':
@@ -167,11 +212,12 @@ class Population:
                     "Validation data must be provided for one-epoch training."
 
                 val_loader = dp.create_dataloader(
-                        X=X_val, y=y_val,
-                        batch_size=batch_size,
-                        generator=self.repro.torch_gen,
-                        seed_worker=self.repro.seed_worker
-                    )
+                    X=val_features,
+                    y=val_targets,
+                    batch_size=batch_size,
+                    generator=self.repro.torch_generator,
+                    worker_init_fn=self.repro.worker_init_fn,
+                )
 
                 epoch_time = train_one_candidate(
                     candidate, train_loader, val_loader,
@@ -179,12 +225,8 @@ class Population:
                 )
 
 
-                # log epoch time
-                if "epoch_time" not in candidate.metrics:
-                    candidate.metrics["epoch_time"] = []
-                candidate.metrics["epoch_time"].append(epoch_time)
+                candidate.metrics.setdefault("epoch_time", []).append(epoch_time)
 
-                # update budget + epoch counter
                 candidate.next_anchor(growth=1.4, max_cap=len(X_train))
                 candidate.epochs_trained += 1
 
@@ -194,14 +236,19 @@ class Population:
                     "X_val and y_val must be provided for early stopping training."
 
                 val_loader = dp.create_dataloader(
-                    X=X_val, 
-                    y=y_val, 
-                    batch_size=batch_size, 
-                    generator=g, 
-                    seed_worker=seed_worker
+                    X=val_features,
+                    y=val_targets,
+                    batch_size=batch_size,
+                    generator=self.repro.torch_generator,
+                    worker_init_fn=self.repro.worker_init_fn,
                 )
 
-                es_results = model.es_train(train_loader, val_loader, **kwargs)
+                es_results = model.es_train(
+                    candidate,
+                    train_loader,
+                    val_loader,
+                    **kwargs,
+                )
 
                 # Unpack results
                 best_train_loss, best_train_acc, best_val_loss, best_val_acc, learning_curve = es_results
@@ -249,13 +296,23 @@ class Population:
         for _ in range(n_basic):
             arch = search_space.sample_architecture(rng=rng)
             model = search_space.create_model(arch, task_type=self.task_type)
-            new_generation[self.individuals_created] = Candidate(model, arch, starting_instances=self.starting_instances, id_counter=self.individuals_created + 1)
+            new_generation[self.individuals_created] = Candidate(
+                model,
+                arch,
+                starting_instances=self._initial_budget(),
+                identifier=self.individuals_created + 1,
+            )
             self.individuals_created += 1
 
         for _ in range(n_adv):
             child_arch = breed_and_mutate(self.candidates, rng=rng)  # see next step
             child_model = search_space.create_model(child_arch, task_type=self.task_type)
-            new_generation[self.individuals_created] = Candidate(child_model, child_arch, id_counter=self.individuals_created + 1, starting_instances=self.starting_instances)
+            new_generation[self.individuals_created] = Candidate(
+                child_model,
+                child_arch,
+                identifier=self.individuals_created + 1,
+                starting_instances=self._initial_budget(),
+            )
             self.individuals_created += 1
 
         self.candidates.update(new_generation)
@@ -573,15 +630,30 @@ class Population:
 
         fidelity_records = []
 
+        train_features = _ensure_tensor(X_train)
+        train_targets = _ensure_tensor(y_train)
+        val_features = _ensure_tensor(X_val, reference=train_features)
+        val_targets = _ensure_tensor(y_val, reference=train_targets)
+
         for _, row in chosen.iterrows():
             # rebuild model from the ledger row
             model = create_model_from_row(
                 row,
                 input_size=self.search_space.input_size,
                 output_size=self.search_space.output_size,
-                task_type=self.task_type
+                task_type=self.task_type,
             )
-            cand = Candidate(model, row.to_dict(), starting_instances=row["n_instances"][0], id_counter=row["id"])
+
+            n_instances = row.get("n_instances", 1)
+            if isinstance(n_instances, (list, tuple)):
+                n_instances = n_instances[-1]
+
+            cand = Candidate(
+                model,
+                row.to_dict(),
+                starting_instances=int(max(1, n_instances)),
+                identifier=row.get("id"),
+            )
 
             # copy over forecast info
             cand.metrics["forecasted_val_acc"] = row["forecasted_val_acc"]
@@ -589,16 +661,18 @@ class Population:
 
             # loaders
             train_loader = dp.create_dataloader(
-                X=X_train, y=y_train,
+                X=train_features,
+                y=train_targets,
                 batch_size=cand.batch_size,
-                generator=self.repro.torch_gen,
-                seed_worker=self.repro.seed_worker
+                generator=self.repro.torch_generator,
+                worker_init_fn=self.repro.worker_init_fn,
             )
             val_loader = dp.create_dataloader(
-                X=X_val, y=y_val,
+                X=val_features,
+                y=val_targets,
                 batch_size=cand.batch_size,
-                generator=self.repro.torch_gen,
-                seed_worker=self.repro.seed_worker
+                generator=self.repro.torch_generator,
+                worker_init_fn=self.repro.worker_init_fn,
             )
 
             # train with ES
