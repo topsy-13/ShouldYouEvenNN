@@ -1,86 +1,125 @@
+"""Lightweight wrappers around the ``naiveautoml`` baselines."""
+
+from __future__ import annotations
+
+import time
+from typing import Literal, Optional, Tuple
+
 import naiveautoml
+import numpy as np
 import pandas as pd
 import torch
-import numpy as np
-import time
 
-def get_best_models(X, y, 
-                    top_models=None, 
-                    scoring_metric='accuracy',
-                    random_state=13, 
-                    **kwargs):
-    
-    # Convert X
-    if isinstance(X, torch.Tensor):
-        X = X.detach().cpu().numpy()
-    elif isinstance(X, pd.DataFrame):
-        X = X.to_numpy()
-    elif not isinstance(X, np.ndarray):
-        raise TypeError(f"Unsupported type for X: {type(X)}")
+__all__ = [
+    "get_best_models",
+    "summarise_baseline",
+    "get_models_and_baseline_metric",
+]
 
-    # Convert y
-    if isinstance(y, torch.Tensor):
-        y = y.detach().cpu().numpy()
-    elif isinstance(y, pd.Series):
-        y = y.to_numpy()
-    elif not isinstance(y, np.ndarray):
-        raise TypeError(f"Unsupported type for y: {type(y)}")
 
-    naml = naiveautoml.NaiveAutoML(
-        scoring=scoring_metric, 
+def _to_numpy(array_like) -> np.ndarray:
+    if isinstance(array_like, torch.Tensor):
+        return array_like.detach().cpu().numpy()
+    if isinstance(array_like, (pd.DataFrame, pd.Series)):
+        return array_like.to_numpy()
+    if isinstance(array_like, np.ndarray):
+        return array_like
+    raise TypeError(f"Unsupported type: {type(array_like)!r}")
+
+
+def get_best_models(
+    X,
+    y,
+    *,
+    top_models: Optional[int] = None,
+    scoring_metric: str = "accuracy",
+    random_state: int = 13,
+    **kwargs,
+) -> Tuple[pd.DataFrame, object]:
+    """Fit ``NaiveAutoML`` and return its history alongside the chosen model."""
+
+    X_np = _to_numpy(X)
+    y_np = _to_numpy(y)
+
+    automl = naiveautoml.NaiveAutoML(
+        scoring=scoring_metric,
         random_state=random_state,
-        max_hpo_iterations=0, # ! No Optimization
-        **kwargs
+        max_hpo_iterations=0,
+        **kwargs,
     )
-    naml.fit(X, y)
 
-    scoreboard = naml.history
-    # print(scoreboard)
+    automl.fit(X_np, y_np)
 
-    if top_models is None:
-        scoreboard = scoreboard.sort_values(by=scoring_metric, ascending=False)
+    history = automl.history.sort_values(by=scoring_metric, ascending=False)
+    if top_models is not None:
+        history = history.head(top_models)
+
+    return history[["pipeline", scoring_metric]], automl.chosen_model
+
+
+def summarise_baseline(
+    X,
+    y,
+    *,
+    strategy: Literal["best", "worst", "mean", "median"] = "best",
+    top_models: Optional[int] = None,
+    scoring_metric: str = "accuracy",
+    random_state: int = 13,
+    **kwargs,
+) -> Tuple[float, float, pd.DataFrame, object]:
+    """Train baselines and return a summary suitable for reporting."""
+
+    start = time.time()
+    scoreboard, model = get_best_models(
+        X,
+        y,
+        top_models=top_models,
+        scoring_metric=scoring_metric,
+        random_state=random_state,
+        **kwargs,
+    )
+    elapsed = time.time() - start
+
+    metric_column = scoreboard.columns[-1]
+    series = scoreboard[metric_column]
+
+    if strategy == "best":
+        baseline = float(series.max())
+    elif strategy == "worst":
+        baseline = float(series.min())
+    elif strategy == "mean":
+        baseline = float(series.mean())
+    elif strategy == "median":
+        baseline = float(series.median())
     else:
-        scoreboard = scoreboard.sort_values(by=scoring_metric, ascending=False).head(top_models)
+        raise ValueError("strategy must be one of 'best', 'worst', 'mean', 'median'.")
 
-    scoreboard = scoreboard[['pipeline', scoring_metric]]
-    best_model = naml.chosen_model
+    filtered = scoreboard.copy()
+    filtered["pipeline"] = filtered["pipeline"].astype(str)
+    filtered = filtered[~filtered["pipeline"].str.contains("MLP", na=False)]
 
-    return scoreboard, best_model
-
-
-def get_baseline_metric(scoreboard: pd.DataFrame, strategy: str='best'):
-    if strategy == 'best':
-        baseline_metrics = scoreboard.iloc[:,1].max()
-    elif strategy == 'worst':
-        baseline_metrics = scoreboard.iloc[:,1].min()
-    elif strategy == 'mean':
-        baseline_metrics = scoreboard.iloc[:,1].mean()
-    elif strategy == 'median':
-        baseline_metrics = scoreboard.iloc[:,1].median()
-
-    return baseline_metrics
+    return baseline, elapsed, filtered, model
 
 
-def get_models_and_baseline_metric(X, y, top_models=None, 
-                                    scoring_metric='accuracy', random_state=13,
-                                    strategy='best',
-                                    **kwargs
-                                    ):
+def get_models_and_baseline_metric(
+    X,
+    y,
+    *,
+    top_models: Optional[int] = None,
+    scoring_metric: str = "accuracy",
+    random_state: int = 13,
+    strategy: Literal["best", "worst", "mean", "median"] = "best",
+    **kwargs,
+) -> Tuple[float, float, pd.DataFrame, object]:
+    """Backward compatible alias used by experiments and notebooks."""
 
-    start_time = time.time()
-    # Get the best models
-    scoreboard, best_model = get_best_models(X, y, top_models=top_models, scoring_metric=scoring_metric, random_state=random_state, **kwargs)
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    
-    # Get the baseline metric
-    baseline_metrics = get_baseline_metric(scoreboard, 
-                                           strategy=strategy)
-    
-    # Filter out neural models
-    scoreboard['pipeline'] = scoreboard['pipeline'].astype(str)
-    scoreboard = scoreboard[~scoreboard['pipeline'].str.contains('MLP')]
-
-    return baseline_metrics, elapsed_time, scoreboard, best_model
-
+    return summarise_baseline(
+        X,
+        y,
+        strategy=strategy,
+        top_models=top_models,
+        scoring_metric=scoring_metric,
+        random_state=random_state,
+        **kwargs,
+    )
 
