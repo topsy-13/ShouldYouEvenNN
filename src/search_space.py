@@ -3,10 +3,9 @@ import torch.nn as nn
 import torch.optim as optim
 
 import math
-import random
 
 from architecture_generator import DynamicNN
-from utils import set_seed
+import numpy as np
 
 # region Search Space
 class SearchSpace():
@@ -58,71 +57,73 @@ class SearchSpace():
             power *= 2
 
 
-    def _generate_hidden_layers(self, shape, depth):
+    def _pick(self, rng, seq):
+        idx = rng.integers(0, len(seq))
+        return seq[idx]
+
+    def _randint(self, rng, a, b_inclusive):
+        return int(rng.integers(a, b_inclusive + 1))
+
+    def _uniform(self, rng, lo, hi):
+        return float(rng.uniform(lo, hi))
+
+    def _generate_hidden_layers(self, rng, shape, depth):
         min_w, max_w = self.neurons
         if shape == "constant":
-            width = random.randint(min_w, max_w)
+            width = self._randint(rng, min_w, max_w)
             return [width] * depth
         elif shape == "pyramid":
-            return sorted([random.randint(min_w, max_w) for _ in range(depth)], reverse=True)
+            return sorted([self._randint(rng, min_w, max_w) for _ in range(depth)], reverse=True)
         elif shape == "inv_pyramid":
-            return sorted([random.randint(min_w, max_w) for _ in range(depth)])
+            return sorted([self._randint(rng, min_w, max_w) for _ in range(depth)])
         elif shape == "hourglass":
             half = depth // 2
-            down = sorted([random.randint(min_w, max_w) for _ in range(half+1)], reverse=True)
+            down = sorted([self._randint(rng, min_w, max_w) for _ in range(half+1)], reverse=True)
             up = down[:-1][::-1] if depth % 2 == 0 else down[::-1]
             return down + up
         elif shape == "triangular":
-            if random.random() < 0.5:  # grow
-                return sorted([random.randint(min_w, max_w) for _ in range(depth)])
-            else:  # shrink
-                return sorted([random.randint(min_w, max_w) for _ in range(depth)], reverse=True)
+            grow = rng.random() < 0.5
+            vals = [self._randint(rng, min_w, max_w) for _ in range(depth)]
+            return sorted(vals) if grow else sorted(vals, reverse=True)
         elif shape == "irregular":
-            return [random.randint(min_w, max_w) for _ in range(depth)]
+            return [self._randint(rng, min_w, max_w) for _ in range(depth)]
         else:
             raise ValueError(f"Unknown shape: {shape}")
 
+    def sample_architecture(self, seed=None, rng: np.random.Generator = None):
+        # Prefer passed-in RNG; fall back to per-call local RNG (still reproducible)
+        if rng is None:
+            rng = np.random.default_rng(seed if seed is not None else None)
 
-    def sample_architecture(self, seed=None):
-        # Set seed for reproducibility
-        if seed is None:
-            seed = random.randint(0, 100000)
+        depth = self._randint(rng, self.layers[0], self.layers[1])
+        shape = self._pick(rng, self.arch_shapes)
+        hidden_layers = self._generate_hidden_layers(rng, shape, depth)
 
-        set_seed(seed)
+        activation_fn = self._pick(rng, self.activation_fns)
+        dropout_rate  = self._pick(rng, self.dropout_rates)
+        optimizer_type = self._pick(rng, self.optimizers)
 
-        depth = random.randint(self.layers[0], self.layers[1])
-        shape = random.choice(self.arch_shapes)
-        hidden_layers = self._generate_hidden_layers(shape, depth)
-
-        activation_fn = random.choice(self.activation_fns)
-        dropout_rate = random.choice(self.dropout_rates)
-        optimizer_type = random.choice(self.optimizers)
-        
-        # Sample learning rate on a logarithmic scale
-        log_lr = random.uniform(self.log_min_lr, self.log_max_lr)
+        # log-uniform learning rate
+        log_lr = rng.uniform(self.log_min_lr, self.log_max_lr)
         learning_rate = 10 ** log_lr
-        
-        # Sample weight decay on logarithmic scale if it's not zero
-        weight_decay = random.choice(self.weight_decays)
-        momentum = random.choice(self.momentum_values) if optimizer_type in [optim.SGD] else None
-        
-        # Sample other parameters
-        batch_size = random.choice(self.batch_sizes)
-        # use_layer_norm = random.choice(self.layer_norm_options)
-        use_skip_connections = random.choice(self.skip_connection_options)
-        initializer = random.choice(self.initializers)
-        lr_scheduler = random.choice(self.lr_schedulers)
-        
-        # Sample hyperparameters specific to schedulers
+
+        weight_decay = self._pick(rng, self.weight_decays)
+        momentum = self._pick(rng, self.momentum_values) if optimizer_type.__name__ == "SGD" else None
+
+        batch_size = self._pick(rng, self.batch_sizes)
+        use_skip_connections = self._pick(rng, self.skip_connection_options)
+        initializer = self._pick(rng, self.initializers)
+        lr_scheduler = self._pick(rng, self.lr_schedulers)
+
         scheduler_params = {}
         if lr_scheduler == 'step':
-            scheduler_params['step_size'] = random.choice([5, 10, 20, 30])
-            scheduler_params['gamma'] = random.choice([0.1, 0.5, 0.9])
+            scheduler_params['step_size'] = self._pick(rng, [5, 10, 20, 30])
+            scheduler_params['gamma']     = self._pick(rng, [0.1, 0.5, 0.9])
         elif lr_scheduler == 'exponential':
-            scheduler_params['gamma'] = random.choice([0.9, 0.95, 0.99])
+            scheduler_params['gamma']     = self._pick(rng, [0.9, 0.95, 0.99])
         elif lr_scheduler == 'cosine':
-            scheduler_params['T_max'] = random.choice([10, 50, 100])
-        
+            scheduler_params['T_max']     = self._pick(rng, [10, 50, 100])
+
         return {
             'hidden_layers': hidden_layers,
             'shape': shape,
@@ -138,31 +139,32 @@ class SearchSpace():
             'initializer': initializer,
             'lr_scheduler': lr_scheduler,
             'scheduler_params': scheduler_params,
-            'seed':seed
+            # 'seed': draw_seed  # optional legacy field; now meaningless
         }
 
 
-    def create_model(self, architecture, task_type='classification'):
+    def create_model(self, architecture, task_type='classification',
+                     rng=None):
+        # hidden layers etc.
         hidden_layers = architecture["hidden_layers"]
         activation_fn = architecture["activation_fn"]
-        dropout_rate = architecture["dropout_rate"]
+        dropout_rate  = architecture["dropout_rate"]
         optimizer_type = architecture["optimizer_type"]
         learning_rate = architecture["learning_rate"]
-        self.batch_size = architecture["batch_size"]  #* extract the batch size for dataloader
 
-
-        # Extract new parameters with defaults if not present (for backward compatibility)
         weight_decay = architecture.get("weight_decay", 0)
         momentum = architecture.get("momentum", None)
         use_skip_connections = architecture.get("use_skip_connections", False)
         initializer = architecture.get("initializer", "xavier_uniform")
         lr_scheduler = architecture.get("lr_scheduler", "none")
         scheduler_params = architecture.get("scheduler_params", {})
-        
-        # Create model with all parameters
+
+        # force deterministic device
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
         model = DynamicNN(
-            self.input_size, self.output_size, 
-            hidden_layers, activation_fn, 
+            self.input_size, self.output_size,
+            hidden_layers, activation_fn,
             dropout_rate, learning_rate, optimizer_type,
             weight_decay=weight_decay,
             momentum=momentum,
@@ -170,10 +172,12 @@ class SearchSpace():
             initializer=initializer,
             lr_scheduler=lr_scheduler,
             scheduler_params=scheduler_params,
-            device=self.device,
-            task_type=task_type
-        ).to(self.device)
-        
+            device=device,
+            task_type=task_type,
+            rng=rng  # NEW: give the model its reproducibility stream
+        ).to(device)
+
         return model
+
     
 # endregion

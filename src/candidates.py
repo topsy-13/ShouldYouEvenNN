@@ -15,19 +15,32 @@ class Candidate:
         self.batch_size = architecture.get("batch_size")
         self.n_instances = [starting_instances]
         self.epochs_trained = 0
-        # self.proportion_instances = []
-        self.efforts = []
+        
+        # NEW: track batches
+        self.batches_trained = 0
+        self.cumulative_times = []
+
+        # training logs
+        self.efforts = []  # list of per-batch times
         self.metrics = {
             "train": {"loss": [], "acc": []},
             "val": {"loss": [], "acc": []},
-            "test": {"loss": [], "acc": []},
             "forecasted_val_acc": 0.0,
             "score": 0.0,
-            # "forecast_gain": 0.0,
             "fcst_greater_than_baseline": False
         }
         
 
+    def log_effort(self, batch_time: float):
+        """
+        Log the wall-clock time per batch and increment batch counter.
+        """
+        self.efforts.append(batch_time)
+        self.batches_trained += 1
+        if self.cumulative_times:
+            self.cumulative_times.append(self.cumulative_times[-1] + batch_time)
+        else:
+            self.cumulative_times.append(batch_time)
 
     def update_n_instances(self, n_instances):
         self.n_instances.append(n_instances)
@@ -98,16 +111,18 @@ class Candidate:
             f")"
         )
     
+
+
     def build_dict(self):
         # Flatten architecture
         flat_arch = {f"arch_{k}": v for k, v in self.architecture.items()}
-
+        flat_arch["arch_rng_state"] = str(self.architecture.get("rng_state",
+                                                                 None))  # NEW
         # Flatten metrics, but keep lists intact
         flat_metrics = {}
         for k, v in self.metrics.items():
             if isinstance(v, dict):
                 for sub_k, sub_v in v.items():
-                    # keep lists as full lists
                     flat_metrics[f"{k}_{sub_k}"] = sub_v
             else:
                 flat_metrics[k] = v
@@ -116,16 +131,61 @@ class Candidate:
             values = flat_metrics.get(key, [])
             flat_metrics[f"last_{key}"] = values[-1] if values else None
 
+        # --- NEW: summarize timing ---
+        batch_times = self.metrics.get("efforts", [])
+        if isinstance(batch_times, list) and len(batch_times) > 0:
+            flat_metrics["total_batch_time"] = float(sum(batch_times))
+            flat_metrics["avg_batch_time"] = float(np.mean(batch_times))
+        else:
+            flat_metrics["total_batch_time"] = 0.0
+            flat_metrics["avg_batch_time"] = 0.0
+
+        epoch_times = self.metrics.get("epoch_time", [])
+        if isinstance(epoch_times, list) and len(epoch_times) > 0:
+            flat_metrics["total_epoch_time"] = float(sum(epoch_times))
+            flat_metrics["avg_epoch_time"] = float(np.mean(epoch_times))
+        else:
+            flat_metrics["total_epoch_time"] = 0.0
+            flat_metrics["avg_epoch_time"] = 0.0
+
         # Combine everything
         candidate_dict = {
             "id": self.id,
             "batch_size": self.batch_size,
             "n_instances": self.n_instances,
             "epochs_trained": self.epochs_trained,
+            "batches_trained": self.batches_trained,
             "efforts": self.efforts,
+            "cumulative_times": self.cumulative_times,   # <<< NEW FIELD
             **flat_arch,
             **flat_metrics
         }
+
         return candidate_dict
+
+
+
+
+    def next_anchor(self, growth=1.4, max_cap=None):
+        """
+        Calculate the next anchor point based on the previous number of instances.
+
+        Parameters:
+        growth (float): The growth factor to determine the next anchor. Default is 1.4.
+        max_cap (int, optional): The maximum limit for the next anchor. If provided, the next anchor will not exceed this value.
+
+        Updates:
+        - The function updates the number of instances to the calculated next anchor.
+
+        Example:
+        >>> obj.next_anchor()  # Increases the last instance count by 40%
+        >>> obj.next_anchor(max_cap=100)  # Increases but caps at 100 if exceeded
+        """
+        prev = self.n_instances[-1]
+        nxt = int(prev * growth)
+        if max_cap:
+            nxt = min(nxt, max_cap)
+        self.update_n_instances(nxt)
+
 
 # endregion

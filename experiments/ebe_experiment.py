@@ -104,8 +104,8 @@ def main(data_id=54, seed=12,
     ebe_performance = {
         'seed': SEED,
         'data_id': DATA_ID,
-        'time_factor': BUDGET_FACTOR,
         'time_budget': time_budget_ebe,
+        'time_factor': BUDGET_FACTOR,
         'time_taken': ebe_time_taken,
         'naml_baseline_metric': naml_max_test_acc,
         'candidates_created': population.individuals_created,
@@ -243,5 +243,5 @@ def ebe_main(data_id, seed, time_budget_factor=3):
     # endregion
 
 if __name__ == "__main__":
-    ebe_main(data_id=54, seed=13)
+    ebe_main(data_id=3, seed=14125)
 

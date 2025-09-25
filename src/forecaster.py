@@ -10,9 +10,28 @@ def sigmoid(x, L, k, x0):
 def rational_model(x, a, b):
     return (a * x) / (b + x)
 
-def forecast_accuracy(efforts, accuracies, max_effort=1000, model_type='rational', degree=2):
-    X = np.array(efforts).reshape(-1, 1)
+def forecast_accuracy(x_values, accuracies, max_x=None, model_type='rational', degree=2):
+    """
+    Forecast accuracy given progress data.
+
+    Parameters
+    ----------
+    x_values : list or array
+        Monotonic increasing measure of effort (batches, instances, or cumulative wall time).
+    accuracies : list or array
+        Validation accuracies corresponding to x_values.
+    max_x : float or int, optional
+        Extrapolation point. Default = max observed x.
+    model_type : str
+        'linear', 'polynomial', 'sigmoid', 'rational'.
+    degree : int
+        Degree for polynomial fitting.
+    """
+    X = np.array(x_values).reshape(-1, 1)
     y = np.array(accuracies)
+
+    if max_x is None:
+        max_x = np.max(X)
 
     try:
         if (
@@ -22,25 +41,25 @@ def forecast_accuracy(efforts, accuracies, max_effort=1000, model_type='rational
             np.isinf(y.astype(float)).any()
         ):
             return None
-        
     except (TypeError, ValueError):
         return None
 
     if model_type == 'linear':
         model = LinearRegression()
         model.fit(X, y)
-        forecast = model.predict([[max_effort]])[0]
+        forecast = model.predict([[max_x]])[0]
 
     elif model_type == 'polynomial':
         model = make_pipeline(PolynomialFeatures(degree), LinearRegression())
         model.fit(X, y)
-        forecast = model.predict([[max_effort]])[0]
+        forecast = model.predict([[max_x]])[0]
 
     elif model_type == 'sigmoid':
-        p0 = [1.0, 1.0, np.median(efforts)]
+        p0 = [1.0, 1.0, np.median(x_values)]
         try:
-            popt, _ = curve_fit(sigmoid, X.flatten(), y, p0=p0, bounds=([0, 0, 0], [1.0, 10, np.inf]))
-            forecast = sigmoid(max_effort, *popt)
+            popt, _ = curve_fit(sigmoid, X.flatten(), y, p0=p0, 
+                                bounds=([0, 0, 0], [1.0, 10, np.inf]))
+            forecast = sigmoid(max_x, *popt)
         except RuntimeError:
             forecast = y[-1]
 
@@ -53,7 +72,7 @@ def forecast_accuracy(efforts, accuracies, max_effort=1000, model_type='rational
                 bounds=([0.0, 0.01], [1.0, np.inf]),
                 maxfev=10000
             )
-            forecast = rational_model(max_effort, *popt)
+            forecast = rational_model(max_x, *popt)
         except RuntimeError:
             forecast = y[-1]
 
@@ -63,108 +82,123 @@ def forecast_accuracy(efforts, accuracies, max_effort=1000, model_type='rational
     return float(np.clip(forecast, 0.0, 1.0))
 
 
-def forecast_generation(candidates, effort_threshold=3,
-                        method='rational', min_epochs_for_rational=5,
-                        total_batches=1000):
-    """
-    Generate optimistic forecasts for all candidates.
-    - Very forgiving with minimal data.
-    - Boosts forecasts aggressively in early batches.
-    - Always favors upward trajectories unless model is flatlining badly.
-    """
+# forecaster.py
+def forecast_generation(candidates, dataset_size, 
+                        min_val_points=3, 
+                        growth=1.4, extra_full_passes=3):
+    
+    for cand in candidates.values():
+        val_times, val_accs = get_val_acc_vs_time(cand)
 
-    for i, candidate in candidates.items():
-        efforts = candidate.efforts
-        val_accs = candidate.get_metric('val', 'acc')
-
-        if not efforts or not val_accs:
+        if len(val_times) == 0 or len(val_accs) == 0:
+            cand.metrics["forecasted_val_acc"] = 0.0
             continue
 
-        # Early skip threshold
-        if candidate.epochs_trained < effort_threshold or len(val_accs) < effort_threshold:
-            # With ultra minimal data, enforce an optimistic prior
+        if len(val_accs) < min_val_points:
             last_val = val_accs[-1]
-            forecasted_accuracy = min(1.0, last_val + 0.15)  # "hopeful bump"
-            candidate.metrics["forecasted_val_acc"] = forecasted_accuracy
-            candidate.metrics["slope_val_acc"] = 0.0
-            candidate.metrics["var_val_acc"] = 0.0
-            candidate.metrics["gap_val_acc"] = 0.0
+            cand.metrics["forecasted_val_acc"] = float(min(1.0, last_val + 0.15))
             continue
 
-        # --- Slope forecast ---
-        slope = (val_accs[-1] - val_accs[0]) / max(1e-6, efforts[-1] - efforts[0])
-        slope_boost = np.log1p((total_batches / max(1, efforts[-1])))  # scale slope optimism
-        slope_fcst = float(np.clip(val_accs[-1] + slope * (max(efforts) * slope_boost), 0.0, 1.0))
+        T_future = project_future_time(cand, dataset_size, growth=growth, extra_full_passes=extra_full_passes)
+        if T_future is None:
+            cand.metrics["forecasted_val_acc"] = float(val_accs[-1])
+            continue
 
-        variance = float(np.var(val_accs))
-        last_gap = val_accs[-1] - np.mean(val_accs[:-1]) if len(val_accs) > 1 else 0.0
-
-        # --- Rational forecast ---
-        rational_fcst = None
-        if len(val_accs) >= min_epochs_for_rational:
-            try:
-                rational_fcst = forecast_accuracy(efforts, val_accs, model_type='rational')
-            except Exception:
-                rational_fcst = None
-
-        # --- Linear forecast ---
-        linear_fcst = None
         try:
-            linear_fcst = forecast_accuracy(efforts, val_accs, model_type='linear')
+            fc = forecast_accuracy(val_times, val_accs, max_x=T_future, model_type="rational")
         except Exception:
-            linear_fcst = None
+            fc = float(val_accs[-1])
 
-        # --- Ensemble optimistic rule ---
-        forecasts = [fc for fc in [slope_fcst, rational_fcst, linear_fcst] if fc is not None]
-        base_fcst = max(forecasts) if forecasts else val_accs[-1]
-
-        # --- Optimism boost ---
-        batches_seen = efforts[-1]
-        optimism_boost = (1 - batches_seen / total_batches) * 0.25  # bigger boost early
-        optimistic_fcst = min(1.0, base_fcst + optimism_boost)
-
-        # Guarantee at least +0.15 over last val unless clearly collapsing
-        final_fcst = max(optimistic_fcst, val_accs[-1] + 0.15)
-        final_fcst = float(np.clip(final_fcst, 0.0, 1.0))
-
-        candidate.metrics["forecasted_val_acc"] = final_fcst
-        candidate.metrics["slope_val_acc"] = slope
-        candidate.metrics["var_val_acc"] = variance
-        candidate.metrics["gap_val_acc"] = last_gap
-
-EPS = 1e-8
-
-def sigmoid_prob(fcst, slope, var, goal, temp=0.05,
-                 slope_penalty_scale=5.0, var_penalty_scale=1.0):
-    margin = fcst - goal
-    slope_factor = np.exp(-max(0.0, slope) * slope_penalty_scale)
-    penalty = slope_penalty_scale * 0.1 * slope_factor + var_penalty_scale * var
-    adjusted_margin = margin - penalty
-    prob = 1.0 / (1.0 + np.exp(-adjusted_margin / (temp + EPS)))
-    return float(np.clip(prob, 0.0, 1.0))
+        cand.metrics["forecast_horizon_time"] = T_future
+        cand.metrics["forecasted_val_acc"] = float(np.clip(fc, 0.0, 1.0))
 
 
-def mc_prob(fcst, var, goal, n_samples=500, min_std=1e-3):
-    std = max(min_std, np.sqrt(max(var, 0.0)))
-    samples = np.random.normal(loc=fcst, scale=std, size=n_samples)
-    return float(np.mean(samples > goal))
+
+# EPS = 1e-8
+
+# def sigmoid_prob(fcst, slope, var, goal, temp=0.05,
+#                  slope_penalty_scale=5.0, var_penalty_scale=1.0):
+#     margin = fcst - goal
+#     slope_factor = np.exp(-max(0.0, slope) * slope_penalty_scale)
+#     penalty = slope_penalty_scale * 0.1 * slope_factor + var_penalty_scale * var
+#     adjusted_margin = margin - penalty
+#     prob = 1.0 / (1.0 + np.exp(-adjusted_margin / (temp + EPS)))
+#     return float(np.clip(prob, 0.0, 1.0))
 
 
-def annotate_probabilities(candidates, goal_metric,
-                           alpha=0.7, temp=0.05, mc_samples=500):
+# def mc_prob(fcst, var, goal, n_samples=500, min_std=1e-3):
+#     std = max(min_std, np.sqrt(max(var, 0.0)))
+#     samples = np.random.normal(loc=fcst, scale=std, size=n_samples)
+#     return float(np.mean(samples > goal))
+
+def annotate_probabilities(candidates, goal_metric, temp=0.05):
     """
-    Annotate each candidate with probability of surpassing the goal.
-    Stores p_above_goal, p_sigmoid, and p_mc in candidate.metrics.
+    Assign probability of surpassing the goal using only the rational forecast.
     """
-    for i, candidate in candidates.items():
-        fcst = candidate.metrics.get("forecasted_val_acc", 0.0)
-        slope = candidate.metrics.get("slope_val_acc", 0.0)
-        var = candidate.metrics.get("var_val_acc", 0.0)
+    for cand in candidates.values():
+        fcst = cand.metrics.get("forecasted_val_acc", 0.0)
 
-        p_s = sigmoid_prob(fcst, slope, var, goal_metric, temp=temp)
-        p_m = mc_prob(fcst, var, goal_metric, n_samples=mc_samples)
-        p = alpha * p_m + (1.0 - alpha) * p_s
+        # Margin over the baseline
+        margin = fcst - goal_metric
 
-        candidate.metrics["p_sigmoid"] = p_s
-        candidate.metrics["p_mc"] = p_m
-        candidate.metrics["p_above_goal"] = float(np.clip(p, 0.0, 1.0))
+        # Convert margin into probability
+        prob = 1.0 / (1.0 + np.exp(-margin / (temp + 1e-8)))
+        prob = float(np.clip(prob, 0.0, 1.0))
+
+        cand.metrics["p_above_goal"] = prob
+
+
+import numpy as np
+
+def get_val_acc_vs_time(candidate):
+    # Prefer the explicit cumulative list you added
+    times = np.array(getattr(candidate, "cumulative_times", []), dtype=float)
+    if times.size == 0:
+        # Fallback to cumulative sum of efforts
+        efforts = np.array(candidate.efforts or [], dtype=float)
+        times = np.cumsum(efforts) if efforts.size else np.array([])
+
+    if times.size == 0:
+        return [], []
+
+    val_accs = candidate.get_metric("val", "acc")
+    if not val_accs:
+        return [], []
+
+    k = min(len(val_accs), times.size)
+    return times[:k], val_accs[:k]
+
+import math
+
+
+def project_future_time(candidate, dataset_size, growth=1.4, extra_full_passes=3):
+    """
+    Returns an *absolute* time horizon (seconds) to forecast at:
+    now + time_to_ramp_to_full + extra_full_passes * time_full_pass
+    """
+    bs = int(candidate.batch_size)
+    batch_times = candidate.efforts or []
+    if not batch_times or bs <= 0:
+        return 'F'  # not enough info to project
+
+    # robust per-batch estimate
+    bt = float(np.median(batch_times))
+
+    # current absolute time on the clock
+    t_now = (candidate.cumulative_times[-1] 
+             if getattr(candidate, "cumulative_times", None) 
+             else float(np.sum(batch_times)))
+
+    # ramp-to-full (one pass at each anchor)
+    n = int(candidate.n_instances[-1])
+    t_add = 0.0
+    while n < dataset_size:
+        batches = math.ceil(n / bs)
+        t_add += batches * bt
+        n = min(int(n * growth), dataset_size)
+
+    # full pass at cap
+    t_full = math.ceil(dataset_size / bs) * bt
+    t_add += extra_full_passes * t_full
+
+    return t_now + t_add

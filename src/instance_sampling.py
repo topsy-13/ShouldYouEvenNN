@@ -1,6 +1,5 @@
 import numpy as np
 import data_preprocessing as dp
-from utils import set_seed
 
 def resolve_instance_budget(X, budget, mode="absolute", max_cap=None):
     """
@@ -31,28 +30,29 @@ def resolve_instance_budget(X, budget, mode="absolute", max_cap=None):
 
 from sklearn.model_selection import StratifiedShuffleSplit
 
-def sample_data(X, y, budget, mode="absolute", max_cap=None, task_type='classification', seed=None):
-
+def sample_data(X, y, budget, mode="absolute", 
+                max_cap=None, task_type='classification', seed=None, rng=None):
     n_samples = resolve_instance_budget(X, budget, mode=mode, max_cap=max_cap)
-    total_samples = len(X)
-
-    if n_samples >= total_samples:
-        # Just return the full dataset
+    total = len(X)
+    if n_samples >= total:
         return X, y
 
     if task_type == 'classification':
-        sss = StratifiedShuffleSplit(n_splits=1, train_size=n_samples, random_state=seed)
+        rs = seed if seed is not None else (None if rng is None else int(rng.integers(0, 1_000_000)))
+        sss = StratifiedShuffleSplit(n_splits=1, train_size=n_samples, random_state=rs)
         train_index, _ = next(sss.split(X, y))
-        selected_indices = train_index
-
+        idx = train_index
     elif task_type == 'regression':
-        set_seed(seed)
-        selected_indices = np.random.choice(total_samples, size=n_samples, replace=False)
-
+        if rng is None:
+            local = np.random.default_rng(seed)
+            idx = local.choice(total, size=n_samples, replace=False)
+        else:
+            idx = rng.choice(total, size=n_samples, replace=False)
     else:
         raise ValueError(f"Unsupported task_type: {task_type}")
 
-    return X[selected_indices], y[selected_indices]
+    return X[idx], y[idx]
+
 
 
 def create_dataloaders(X, y, 
