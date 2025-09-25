@@ -1,191 +1,173 @@
-import numpy as np
+"""Candidate abstraction used by the evolutionary search."""
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from statistics import fmean
+from typing import Any, Dict, List, Mapping, MutableMapping, Optional
+
+__all__ = ["Candidate"]
 
 
-# region Individuals
+def _default_metrics() -> Dict[str, Any]:
+    return {
+        "train": {"loss": [], "acc": []},
+        "val": {"loss": [], "acc": []},
+        "test": {"acc": []},
+        "forecasted_val_acc": 0.0,
+        "score": 0.0,
+        "fcst_greater_than_baseline": False,
+    }
+
+
+@dataclass
 class Candidate:
-    def __init__(self, model, architecture, 
-                 starting_instances=100, id_counter=None):
-        self.id = id_counter
-        self.model = model
-        self.architecture = architecture
-        self.batch_size = architecture.get("batch_size")
-        self.n_instances = [starting_instances]
-        self.epochs_trained = 0
-        
-        # NEW: track batches
-        self.batches_trained = 0
-        self.cumulative_times = []
+    """Represent an individual model and its learning trajectory."""
 
-        # training logs
-        self.efforts = []  # list of per-batch times
-        self.metrics = {
-            "train": {"loss": [], "acc": []},
-            "val": {"loss": [], "acc": []},
-            "forecasted_val_acc": 0.0,
-            "score": 0.0,
-            "fcst_greater_than_baseline": False
-        }
-        
+    model: Any
+    architecture: Mapping[str, Any]
+    starting_instances: int = 100
+    identifier: Optional[int] = None
 
-    def log_effort(self, batch_time: float):
-        """
-        Log the wall-clock time per batch and increment batch counter.
-        """
+    batch_size: Optional[int] = field(init=False)
+    n_instances: List[int] = field(default_factory=list)
+    epochs_trained: int = 0
+    batches_trained: int = 0
+    cumulative_times: List[float] = field(default_factory=list)
+    efforts: List[float] = field(default_factory=list)
+    metrics: MutableMapping[str, Any] = field(default_factory=_default_metrics)
+
+    def __post_init__(self) -> None:
+        self.id = self.identifier
+        self.batch_size = int(self.architecture.get("batch_size", 0) or 0)
+        self.n_instances.append(self.starting_instances)
+
+    def log_effort(self, batch_time: float) -> None:
+        """Record the time spent on a training batch."""
+
         self.efforts.append(batch_time)
         self.batches_trained += 1
+
         if self.cumulative_times:
             self.cumulative_times.append(self.cumulative_times[-1] + batch_time)
         else:
             self.cumulative_times.append(batch_time)
 
-    def update_n_instances(self, n_instances):
+    def update_n_instances(self, n_instances: int) -> None:
         self.n_instances.append(n_instances)
-  
 
-    def add_metric(self, split, name, initial_value=None):
-        """
-        Add a new metric dynamically.
-        split: "train", "val", "test" or None (for global metrics).
-        name: metric name.
-        initial_value: starting value (list or scalar).
-        """
-        if split in ["train", "val", "test"]:
-            self.metrics[split][name] = initial_value if initial_value is not None else []
-        else:
-            self.metrics[name] = initial_value if initial_value is not None else 0.0
-            
+    def add_metric(self, split: str, name: str, initial_value: Optional[Any] = None) -> None:
+        """Create a new metric entry for the candidate."""
 
-    def log_metric(self, split, metric=None, value=None):
-            if split in self.metrics and isinstance(self.metrics[split], dict):
-                if metric not in self.metrics[split]:
-                    self.metrics[split][metric] = []
-                if isinstance(self.metrics[split][metric], list):
-                    self.metrics[split][metric].append(value)
-                else:
-                    self.metrics[split][metric] = value
+        if split in {"train", "val", "test"}:
+            split_metrics = self.metrics.setdefault(split, {})
+            if isinstance(split_metrics, dict):
+                split_metrics[name] = [] if initial_value is None else initial_value
             else:
-                self.metrics[split] = value
+                self.metrics[split] = {name: [] if initial_value is None else initial_value}
+        else:
+            self.metrics[split] = initial_value if initial_value is not None else 0.0
 
+    def log_metric(self, split: str, metric: Optional[str] = None, value: Any = None) -> None:
+        """Append a value to a metric or set a scalar metric directly."""
 
-    def get_metric(self, split, metric=None, last_only=False):
-        """
-        Retrieve a metric value from the nested metrics dict.
-        If last_only=True and metric stores a list, return only the last value.
-        """
-        if split in self.metrics and isinstance(self.metrics[split], dict):
-            if metric not in self.metrics[split]:
+        if metric is None:
+            self.metrics[split] = value
+            return
+
+        container = self.metrics.setdefault(split, {})
+        if not isinstance(container, dict):
+            container = {}
+            self.metrics[split] = container
+
+        series = container.setdefault(metric, [])
+        if isinstance(series, list):
+            series.append(value)
+        else:
+            container[metric] = value
+
+    def get_metric(self, split: str, metric: Optional[str] = None, *, last_only: bool = False):
+        """Retrieve a metric value with optional ``last_only`` behaviour."""
+
+        value = self.metrics.get(split)
+        if isinstance(value, dict):
+            if metric is None or metric not in value:
                 raise KeyError(f"Metric '{metric}' not found in split '{split}'.")
-            values = self.metrics[split][metric]
-            if isinstance(values, list):
-                return values[-1] if last_only and values else values
-            return values
-        elif split in self.metrics:
-            # Scalars like score, forecasted_val_acc
-            return self.metrics[split]
-        else:
-            raise KeyError(f"Split '{split}' not found in metrics.")
-        
+            metric_values = value[metric]
+            if isinstance(metric_values, list):
+                return metric_values[-1] if last_only and metric_values else metric_values
+            return metric_values
+        if metric is not None:
+            raise KeyError(f"Split '{split}' does not contain nested metrics.")
+        return value
 
-    def __str__(self):
-        # Pull latest values for readability
-        train_loss = self.get_metric("train", "loss", last_only=True)
-        train_acc = self.get_metric("train", "acc", last_only=True)
-        val_loss = self.get_metric("val", "loss", last_only=True)
-        val_acc = self.get_metric("val", "acc", last_only=True)
-        test_acc = self.get_metric("test", "acc", last_only=True)
-        score = self.get_metric("score")
+    def build_dict(self) -> Dict[str, Any]:
+        """Return a flattened representation suitable for logging."""
 
-        arch_summary = ", ".join(f"{k}={v}" for k, v in self.architecture.items() if k != "layers")
+        flat_arch = {f"arch_{key}": val for key, val in self.architecture.items()}
+        flat_arch["arch_rng_state"] = str(self.architecture.get("rng_state"))
 
-        return (
-            f"Candidate(\n"
-            f"  Arch: {arch_summary}\n"
-            f"  Train: loss={train_loss}, acc={train_acc}\n"
-            f"  Val:   loss={val_loss}, acc={val_acc}\n"
-            f"  Test:  acc={test_acc}\n"
-            f"  Score: {score}\n"
-            f")"
-        )
-    
-
-
-    def build_dict(self):
-        # Flatten architecture
-        flat_arch = {f"arch_{k}": v for k, v in self.architecture.items()}
-        flat_arch["arch_rng_state"] = str(self.architecture.get("rng_state",
-                                                                 None))  # NEW
-        # Flatten metrics, but keep lists intact
-        flat_metrics = {}
-        for k, v in self.metrics.items():
-            if isinstance(v, dict):
-                for sub_k, sub_v in v.items():
-                    flat_metrics[f"{k}_{sub_k}"] = sub_v
+        flat_metrics: Dict[str, Any] = {}
+        for key, value in self.metrics.items():
+            if isinstance(value, dict):
+                for sub_key, sub_value in value.items():
+                    flat_metrics[f"{key}_{sub_key}"] = sub_value
+                    if isinstance(sub_value, list) and sub_value:
+                        flat_metrics[f"last_{key}_{sub_key}"] = sub_value[-1]
             else:
-                flat_metrics[k] = v
-        
-        for key in ["train_acc", "train_loss", "val_acc", "val_loss"]:
-            values = flat_metrics.get(key, [])
-            flat_metrics[f"last_{key}"] = values[-1] if values else None
+                flat_metrics[key] = value
 
-        # --- NEW: summarize timing ---
-        batch_times = self.metrics.get("efforts", [])
-        if isinstance(batch_times, list) and len(batch_times) > 0:
-            flat_metrics["total_batch_time"] = float(sum(batch_times))
-            flat_metrics["avg_batch_time"] = float(np.mean(batch_times))
+        if self.efforts:
+            flat_metrics["total_batch_time"] = float(sum(self.efforts))
+            flat_metrics["avg_batch_time"] = float(fmean(self.efforts))
         else:
             flat_metrics["total_batch_time"] = 0.0
             flat_metrics["avg_batch_time"] = 0.0
 
-        epoch_times = self.metrics.get("epoch_time", [])
-        if isinstance(epoch_times, list) and len(epoch_times) > 0:
-            flat_metrics["total_epoch_time"] = float(sum(epoch_times))
-            flat_metrics["avg_epoch_time"] = float(np.mean(epoch_times))
-        else:
-            flat_metrics["total_epoch_time"] = 0.0
-            flat_metrics["avg_epoch_time"] = 0.0
-
-        # Combine everything
-        candidate_dict = {
+        return {
             "id": self.id,
             "batch_size": self.batch_size,
             "n_instances": self.n_instances,
             "epochs_trained": self.epochs_trained,
             "batches_trained": self.batches_trained,
             "efforts": self.efforts,
-            "cumulative_times": self.cumulative_times,   # <<< NEW FIELD
+            "cumulative_times": self.cumulative_times,
             **flat_arch,
-            **flat_metrics
+            **flat_metrics,
         }
 
-        return candidate_dict
+    def next_anchor(self, *, growth: float = 1.4, max_cap: Optional[int] = None) -> None:
+        """Expand the number of instances processed in the next round."""
 
+        previous = self.n_instances[-1]
+        next_value = int(previous * growth)
+        if max_cap is not None:
+            next_value = min(next_value, max_cap)
+        self.update_n_instances(next_value)
 
+    def __str__(self) -> str:
+        train_loss = self.get_metric("train", "loss", last_only=True)
+        train_acc = self.get_metric("train", "acc", last_only=True)
+        val_loss = self.get_metric("val", "loss", last_only=True)
+        val_acc = self.get_metric("val", "acc", last_only=True)
+        test_acc = None
+        try:
+            test_acc = self.get_metric("test", "acc", last_only=True)
+        except KeyError:
+            pass
+        score = self.metrics.get("score")
 
+        arch_summary = ", ".join(
+            f"{key}={value}" for key, value in self.architecture.items() if key != "layers"
+        )
 
-    def next_anchor(self, growth=1.4, max_cap=None):
-        """
-        Calculate the next anchor point based on the previous number of instances.
+        return (
+            "Candidate(\n"
+            f"  Arch: {arch_summary}\n"
+            f"  Train: loss={train_loss}, acc={train_acc}\n"
+            f"  Val:   loss={val_loss}, acc={val_acc}\n"
+            f"  Test:  acc={test_acc}\n"
+            f"  Score: {score}\n"
+            ")"
+        )
 
-        Parameters:
-        growth (float): The growth factor to determine the next anchor. Default is 1.4.
-        max_cap (int, optional): The maximum limit for the next anchor. If provided, the next anchor will not exceed this value.
-
-        Updates:
-        - The function updates the number of instances to the calculated next anchor.
-
-        Example:
-        >>> obj.next_anchor()  # Increases the last instance count by 40%
-        >>> obj.next_anchor(max_cap=100)  # Increases but caps at 100 if exceeded
-        """
-        prev = self.n_instances[-1]
-        nxt = int(prev * growth)
-        if max_cap:
-            nxt = min(nxt, max_cap)
-        self.update_n_instances(nxt)
-
-
-# endregion
