@@ -134,6 +134,49 @@ def scale_features(X_train, X_val, X_test, scaler_type="standard"):
     X_test  = scaler.transform(X_test)
     return X_train, X_val, X_test
 
+from sklearn.impute import SimpleImputer
+
+def impute_features(X_train, X_val, X_test,
+                    num_strategy="mean", cat_strategy="most_frequent",
+                    verbose=False):
+    """
+    Impute missing values separately for numeric and categorical features.
+    
+    Parameters
+    ----------
+    num_strategy : str
+        'mean', 'median', or 'constant' for numeric columns.
+    cat_strategy : str
+        'most_frequent' or 'constant' for categorical columns.
+    """
+    # Identify types
+    num_cols = X_train.select_dtypes(include=["int64", "float64"]).columns
+    cat_cols = X_train.select_dtypes(include=["object", "category"]).columns
+
+    # --- numeric ---
+    if len(num_cols) > 0:
+        num_imputer = SimpleImputer(strategy=num_strategy)
+        X_train[num_cols] = num_imputer.fit_transform(X_train[num_cols])
+        X_val[num_cols]   = num_imputer.transform(X_val[num_cols])
+        X_test[num_cols]  = num_imputer.transform(X_test[num_cols])
+
+    # --- categorical ---
+    if len(cat_cols) > 0:
+        cat_imputer = SimpleImputer(strategy=cat_strategy)
+        X_train[cat_cols] = cat_imputer.fit_transform(X_train[cat_cols])
+        X_val[cat_cols]   = cat_imputer.transform(X_val[cat_cols])
+        X_test[cat_cols]  = cat_imputer.transform(X_test[cat_cols])
+
+    if verbose:
+        n_missing = (
+            X_train.isna().sum().sum() +
+            X_val.isna().sum().sum() +
+            X_test.isna().sum().sum()
+        )
+        print(f"Imputation applied. Remaining NaNs: {n_missing}")
+
+    return X_train, X_val, X_test
+
 
 def get_preprocessed_data(dataset_id=334, scaling=True, 
                           scaler_type="standard",
@@ -149,6 +192,14 @@ def get_preprocessed_data(dataset_id=334, scaling=True,
 
     # Split raw first
     X_train, X_val, X_test, y_train, y_val, y_test = split_data(X, y, random_seed=random_seed)
+
+    # --- NEW: handle missing values before encoding ---
+    X_train, X_val, X_test = impute_features(
+        X_train, X_val, X_test,
+        num_strategy="mean",
+        cat_strategy="most_frequent",
+        verbose=verbose
+    )
 
     # Encode features
     X_train, X_val, X_test = preprocess_features(X_train, X_val, X_test,
