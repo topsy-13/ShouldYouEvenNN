@@ -1,4 +1,6 @@
 import matplotlib.pyplot as plt
+import seaborn as sns
+
 import pandas as pd
 
 def plot_generation_dynamics(generation_logs, title="Population dynamics"):
@@ -78,7 +80,8 @@ def plot_forecast_vs_fidelity(fidelity_report, title="Forecast vs Fidelity"):
 
 def plot_es_learning_curve_from_ledger(row, title=None):
     """
-    Plot ES learning curve from a fidelity_ledger row with time axis scaled to the forecast horizon.
+    Plot ES learning curve from a fidelity_ledger row with time axis scaled to the forecast horizon,
+    including forecasted confidence interval at the final step.
     """
     import matplotlib.pyplot as plt
     import numpy as np
@@ -96,6 +99,7 @@ def plot_es_learning_curve_from_ledger(row, title=None):
     # forecast info
     fcst_acc = row.get("forecasted_val_acc", None)
     fcst_time = row.get("forecast_horizon_time", None)
+    ci_lower, ci_upper = row.get("forecasted_CI_low", None), row.get("forecasted_CI_high", None)
 
     # build x-axis: evenly spread validation checks over [0, forecast_horizon_time]
     if fcst_time is not None:
@@ -107,11 +111,27 @@ def plot_es_learning_curve_from_ledger(row, title=None):
 
     # ES curve
     plt.plot(times, val_accs, "o-", color="blue", label="ES val_acc")
-
+    plt.vlines(row.get('forecasted_at'), color='black', linestyle='--', ymin=0, ymax=1, label='Forecast made at')
     # forecast overlay
     if fcst_acc is not None and fcst_time is not None:
+        # Horizon lines
         plt.axvline(fcst_time, color="red", linestyle="--", label="Forecast horizon")
         plt.axhline(fcst_acc, color="red", linestyle="--", label=f"Forecasted acc={fcst_acc:.3f}")
+
+        # Add CI whisker + shading if available
+        if ci_lower is not None and ci_upper is not None:
+            # Vertical whisker
+            plt.vlines(fcst_time, ci_lower, ci_upper, color="black", lw=1.5)
+            plt.hlines([ci_lower, ci_upper],
+                       fcst_time - 0.02 * fcst_time,
+                       fcst_time + 0.02 * fcst_time,
+                       color="black", lw=1.5)
+
+            # Subtle shaded box around the CI
+            plt.fill_betweenx([ci_lower, ci_upper],
+                              fcst_time - 0.03 * fcst_time,
+                              fcst_time + 0.03 * fcst_time,
+                              color="gray", alpha=0.2)
 
     plt.xlabel("Cumulative Time (s)")
     plt.ylabel("Validation Accuracy")
@@ -120,4 +140,7 @@ def plot_es_learning_curve_from_ledger(row, title=None):
     plt.grid(alpha=0.3)
     plt.xlim(left=0)
     plt.ylim(0, 1.0)
+    # Despine for aesthetics
+    sns.despine()
+    plt.tight_layout()
     plt.show()

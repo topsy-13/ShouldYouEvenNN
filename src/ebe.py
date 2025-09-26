@@ -435,16 +435,24 @@ class Population:
             track_all_models=False):
         """
         Full EBE loop:
-        - Repeatedly run packaged generations with convex LB + hybrid pruning + trickle spawn.
-        - Stop if time budget is exceeded or max_generations reached.
-        - At the end, compute expected utility decision.
+        - Run generations with convex LB + hybrid pruning.
+        - After each gen, check worth_training_neural_bayes.
+        - If decision flips True, stop EBE and launch extended training.
+        - Extended training continues candidate training until:
+            (a) baseline surpassed,
+            (b) time budget exhausted,
+            (c) convex LB says hopeless.
+        - Fidelity check always runs at the end. #!
         """
 
         self.current_snapshot = self.initial_ledger
         self.cumulative_ledger = self.initial_ledger if track_all_models else None
 
         start_time = time.time()
+        triggered = False
+        best_cand = None
 
+        # === Main EBE loop ===
         for gen in range(max_generations):
             elapsed = time.time() - start_time
             if elapsed >= time_budget:
@@ -460,32 +468,107 @@ class Population:
                 max_drop=max_drop,
                 track_all_models=track_all_models
             )
-
             self.generations_completed += 1
 
-        # Drop from ledger any candidates without forecast (never trained)
-        self.current_snapshot = self.current_snapshot.dropna(subset=["forecasted_val_acc"])
-        self.current_snapshot = self.current_snapshot[self.current_snapshot['batches_trained'] > 5]
-        # --- Final decision ---
-        self.decision, self.eu, self.p, self.benefit, self.cost = self.worth_training_neural_bayes(
-            baseline_metric=baseline_metric,
-            cost_scale=1
-        )
+            # decision check after each generation
+            self.decision, self.eu, self.p, self.benefit, self.cost = \
+                self.worth_training_neural_bayes(baseline_metric=baseline_metric)
+
+            if self.decision:
+                print(f"[EBE] At gen {gen+1}, decision flipped: Worth training NN")
+                best_cand = max(self.candidates.values(),
+                                key=lambda c: c.metrics.get("forecasted_val_acc", 0.0))
+                triggered = True
+                break
+
         print("EBE process completed.")
 
-        print("Training top by ES (fidelity check)")
-        self.fidelity_ledger = self.fidelity_from_ledger(
-            ledger_df=self.current_snapshot,   # <-- the latest ledger DataFrame
-            X_train=X_train, y_train=y_train,
-            X_val=X_val, y_val=y_val,
-            top_fraction=1
-        )
+        # === Post-EBE extended training if triggered ===
+        if triggered and best_cand is not None:
+            print("[Post-EBE Extended Training] Launching extended training")
 
+            from scoring import convex_lb_discard
+            model = best_cand.model
+
+            # loaders
+            train_loader = dp.create_dataloader(
+                X=X_train, y=y_train,
+                batch_size=best_cand.batch_size,
+                generator=self.repro.torch_gen,
+                seed_worker=self.repro.seed_worker
+            )
+            val_loader = dp.create_dataloader(
+                X=X_val, y=y_val,
+                batch_size=best_cand.batch_size,
+                generator=self.repro.torch_gen,
+                seed_worker=self.repro.seed_worker
+            )
+
+            extension = 5.0  # seconds per horizon bump
+            surpassed = False
+
+            while True:
+                elapsed = time.time() - start_time
+                if elapsed >= time_budget:
+                    print(f"Time budget exhausted ({elapsed:.2f}s), stopping.")
+                    break
+
+                # bump horizon forward
+                current_horizon = best_cand.metrics.get("forecast_horizon_time", 0.0) or 0.0
+                best_cand.metrics["forecast_horizon_time"] = current_horizon + extension
+
+                # train further
+                _, _, _, val_acc, _ = model.horizon_train(
+                    candidate=best_cand,
+                    train_loader=train_loader,
+                    val_loader=val_loader,
+                    task_type=self.task_type,
+                    return_lc=False
+                )
+
+                # baseline check
+                if val_acc is not None and val_acc >= baseline_metric:
+                    print(f"Candidate {best_cand.id} surpassed baseline "
+                        f"({val_acc:.3f} >= {baseline_metric:.3f})")
+                    surpassed = True
+                    break
+
+                # hopelessness check
+                if convex_lb_discard(best_cand, baseline_metric, b_ref=len(X_train), margin=0.1):
+                    print(f"Candidate {best_cand.id} deemed hopeless, stopping early.")
+                    break
+
+            if not surpassed:
+                best_val = best_cand.get_metric("val", "acc", last_only=True)
+                print(f"Candidate {best_cand.id} failed to surpass baseline. "
+                    f"Best={best_val:.3f}, Baseline={baseline_metric:.3f}")
+
+        elif not triggered:
+            print("[EBE] No evidence found that NN is worth training. Skipping extension.")
+        
+        self.current_snapshot = self.build_ledger().copy(deep=True)
         return self.current_snapshot
 
 
+    def fidelity_training(self, X_train, y_train, X_val, y_val):
+        # === Fidelity check ===
+        print("Training top by ES (fidelity check)")
+        self.fidelity_ledger = self.fidelity_from_ledger(
+            ledger_df=self.current_snapshot,
+            X_train=X_train, y_train=y_train,
+            X_val=X_val, y_val=y_val,
+            top_fraction=1 # all of them
+        )
+        return self.fidelity_ledger
+
+
+    
 
     def build_ledger(self, export_as='pandas'):
+        def _to_scalar(val):
+            if isinstance(val, list):
+                return val[-1] if val else np.nan
+            return val
         current_candidates = []
         active_individuals = self.candidates.keys()
         for i in active_individuals:
@@ -494,8 +577,10 @@ class Population:
             current_candidates.append(cand_dict)
 
         if export_as == 'pandas':
-            df = pd.DataFrame(current_candidates).sort_values(by='score', ascending=False)
+            df = pd.DataFrame(current_candidates)
+            df = df.sort_values(by='score', ascending=False)
             return df.copy(deep=True)
+
         elif export_as == 'json':
             return json.dumps(current_candidates, indent=4)
 
@@ -540,7 +625,7 @@ class Population:
 
     def fidelity_from_ledger(self, ledger_df, 
                             X_train, y_train, X_val, y_val,
-                            top_fraction=0.9):
+                            top_fraction=1):
         """
         Rebuild models from ledger rows and retrain them with ES
         to compare forecast vs actual performance.
@@ -595,21 +680,35 @@ class Population:
 
             best_train_loss, best_train_acc, best_val_loss, best_val_acc, lc = results
 
+            # --- CLEANUP: ensure fidelity_val_acc is always scalar or NaN ---
+            if isinstance(best_val_acc, list):
+                best_val_acc = best_val_acc[-1] if best_val_acc else np.nan
+
             fidelity_records.append({
                 "id": cand.id,
                 "forecasted_val_acc": cand.metrics["forecasted_val_acc"],
+                "forecasted_CI_high": row.get("forecast_CI_high"),
+                "forecasted_CI_low": row.get("forecast_CI_low"),
+                "forecasted_at": row["cumulative_times"][-1],
                 "forecast_horizon_time": cand.metrics.get("forecast_horizon_time"),
                 "fidelity_val_acc": best_val_acc,
                 "fidelity_train_acc": best_train_acc,
                 "fidelity_val_loss": best_val_loss,
-                "learning_curve": lc
+                "learning_curve": lc,
             })
-        
 
         # now build the ledger only with those that passed the threshold
-        fidelity_ledger = pd.DataFrame(fidelity_records).sort_values(
+        fidelity_ledger = pd.DataFrame(fidelity_records)
+        # DEBUG: inspect the dtype and problematic entries
+        print("\n[DEBUG] fidelity_val_acc types:")
+        print(fidelity_ledger["fidelity_val_acc"].apply(type).value_counts())
+        print(fidelity_ledger[["id", "fidelity_val_acc"]])
+
+        # proceed to drop and sort
+        fidelity_ledger = fidelity_ledger.dropna(subset=["fidelity_val_acc"]).sort_values(
             "fidelity_val_acc", ascending=False, na_position="last"
         )
+
         self.fidelity_ledger = fidelity_ledger
 
 
