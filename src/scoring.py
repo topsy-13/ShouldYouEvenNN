@@ -60,10 +60,29 @@ def compute_and_log_p_above_goal(candidates,
     and log it into candidate.metrics["p_above_goal"].
     """
     for cand in candidates.values():
-        p = compute_p_above_goal(cand, goal_metric,
-                                 alpha=alpha, temp=temp,
-                                 mc_samples=mc_samples)
-        cand.metrics["p_above_goal"] = p
+        # --- use CI high instead of mean forecast ---
+        fc_high = cand.metrics.get("forecast_CI_high",
+                                cand.metrics.get("forecasted_val_acc", 0.0))
+        cand.metrics["fcst_used_for_prob"] = fc_high  # log for debugging
+
+        # run probability computation but override forecast
+        last_val = cand.get_metric("val", "acc", last_only=True) or 0.0
+
+        # optimistic Monte Carlo + sigmoid, anchored at CI_high
+        slope = cand.metrics.get("slope_val_acc", 0.0)
+        var   = cand.metrics.get("var_val_acc", 0.02)
+
+        s_prob = sigmoid_prob(fc_high, slope, var, goal_metric, temp=temp)
+        m_prob = mc_prob(fc_high, var, goal_metric, n_samples=mc_samples)
+        p_base = alpha * m_prob + (1.0 - alpha) * s_prob
+
+        # --- blend with observed accuracy ---
+        p_blend = 0.6 * p_base + 0.4 * last_val
+
+        # --- apply floor to avoid starving decent candidates ---
+        p_final = float(np.clip(max(p_blend, 0.05), 0.0, 1.0))
+
+        cand.metrics["p_above_goal"] = p_final
 
 
 def score_individuals(candidates):
@@ -170,35 +189,30 @@ def score_individuals(candidates):
 #     print(f"[Hybrid] Candidates={n}, drop={len(worst)}, keep={len(survivors)}")
 
 
-def convex_lb_discard(candidate, goal, b_ref):
+def convex_lb_discard(candidate, goal, b_ref,
+                      min_points=5, margin=0.02):
     """
-    Convex Lower-Bound Discard Rule.
-    
-    Idea:
-    - Learning curves are usually |monotone and convex (improve quickly, then flatten).
-    - Use the last two observed anchors (effort, val_acc) to draw a straight line (secant).
-    - That line represents the *best-case extension* of current progress.
-    - If even this optimistic extrapolation at reference budget (b_ref) 
-      cannot beat the goal, then discard the candidate early.
-
-    Args:
-        candidate (Candidate): Individual model with effort and val_acc history.
-        goal (float): Target accuracy to beat (e.g. baseline or incumbent).
-        b_ref (int): Reference effort/budget to project to.
-
-    Returns:
-        bool: True if candidate should be discarded, False otherwise.
+    Softer convex LB discard using first and last val_acc points.
+    - Needs at least min_points anchors.
+    - Slope from very first to most recent accuracy, not just last 2.
+    - Requires CI_high also below goal before discarding.
     """
-    efforts = candidate.efforts
+
     val_accs = candidate.get_metric("val", "acc")
+    efforts = candidate.efforts
 
-    # need at least 2 anchors to compute slope
-    if not val_accs or len(val_accs) < 2 or len(efforts) < 2:
-        return False
+    if len(val_accs) < min_points or len(efforts) < min_points:
+        return False  # too early
 
-    x1, x2 = efforts[-2], efforts[-1]
-    y1, y2 = val_accs[-2], val_accs[-1]
+    # first and last points
+    x1, x2 = efforts[0], efforts[-1]
+    y1, y2 = val_accs[0], val_accs[-1]
 
     slope = (y2 - y1) / (x2 - x1 + 1e-8)
     best_case = y2 + slope * (b_ref - x2)
-    return best_case < goal
+
+    ci_high = candidate.metrics.get("forecast_CI_high",
+                                    candidate.metrics.get("forecasted_val_acc", y2))
+
+    hopeless = (best_case < (goal - margin)) and (ci_high < goal)
+    return hopeless

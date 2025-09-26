@@ -55,12 +55,14 @@ def plot_forecast_vs_fidelity(fidelity_report, title="Forecast vs Fidelity"):
     axes[0].scatter(fcst, actual, c="blue", alpha=0.7)
     min_val = min(fcst.min(), actual.min())
     max_val = max(fcst.max(), actual.max())
-    axes[0].plot([min_val, max_val], [min_val, max_val], "r--", label="Perfect forecast")
+    axes[0].plot([0, 1], [0, 1], "r--", label="Perfect forecast")
     axes[0].set_xlabel("Forecasted val_acc")
     axes[0].set_ylabel("Actual ES val_acc")
     axes[0].set_title("Forecast vs Actual")
     axes[0].legend()
     axes[0].grid(alpha=0.3)
+    axes[0].set_xlim(0.2, 1.0)
+    axes[0].set_ylim(0.2, 1.0)
 
     # --- Histogram: forecast error ---
     axes[1].hist(deltas, bins=15, color="purple", alpha=0.7)
@@ -116,4 +118,6 @@ def plot_es_learning_curve_from_ledger(row, title=None):
     plt.title(title or f"Candidate {row['id']} ES vs Forecast")
     plt.legend()
     plt.grid(alpha=0.3)
+    plt.xlim(left=0)
+    plt.ylim(0, 1.0)
     plt.show()

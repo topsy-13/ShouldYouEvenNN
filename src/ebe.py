@@ -35,14 +35,13 @@ class Population:
         self.size = size
         self.starting_instances = starting_instances
         self.individuals_created = 0
-        self.candidates = self.spawn_candidates()
-        self.initial_ledger = self.build_ledger().copy(deep=True)
         self.generations_completed = 0
+        self.candidates = {}
+        self.spawn_new_candidates(self.search_space)  # use the same spawn logic
+        self.initial_ledger = self.build_ledger().copy(deep=True)
         self.generation_logs = []
 
-
         
-
     def spawn_candidates(self):
         candidates_pool = {}
         rng = self.repro.np_rng
@@ -136,8 +135,6 @@ class Population:
 
             return epoch_time_acc
 
-
-
         """Train all candidates in the population."""
         for i in list(self.candidates.keys()):
             candidate = self.candidates[i]
@@ -188,92 +185,70 @@ class Population:
                 candidate.next_anchor(growth=1.4, max_cap=len(X_train))
                 candidate.epochs_trained += 1
 
-            elif training_mode == 'es':
-                print(f"Training individual {i+1}/{self.size} with Early Stopping...")
-                assert X_val is not None and y_val is not None, \
-                    "X_val and y_val must be provided for early stopping training."
-
-                val_loader = dp.create_dataloader(
-                    X=X_val, 
-                    y=y_val, 
-                    batch_size=batch_size, 
-                    generator=g, 
-                    seed_worker=seed_worker
-                )
-
-                es_results = model.es_train(train_loader, val_loader, **kwargs)
-
-                # Unpack results
-                best_train_loss, best_train_acc, best_val_loss, best_val_acc, learning_curve = es_results
-                results = {
-                    'final_train_loss': best_train_loss,
-                    'final_train_acc': best_train_acc,
-                    'final_val_loss': best_val_loss,
-                    'final_val_acc': best_val_acc,
-                    'learning_curve_es': learning_curve
-                }
-                candidate.metrics["es_results"] = results
-
-
-    # def validate_generation(self, X_val, y_val, metric='val'):
-
-    #     active_individuals = self.candidates.keys()
-    #     for i in active_individuals:
-    #         candidate = self.candidates[i]
-    #         model = candidate.model
-    #         batch_size = candidate.batch_size
-    #         seed = candidate.architecture.get("seed", None)
-    #         g, seed_worker = set_seed(seed)
-            
-    #         # Create a DataLoader with the architecture-specific batch size
-    #         val_loader = dp.create_dataloader(X=X_val, 
-    #                                             y=y_val, 
-    #                    batch_size=batch_size, 
-    #                    generator=g, 
-    #                    seed_worker=seed_worker)
-    #         val_loss, val_acc = model.evaluate(val_loader)
-
-    #         candidate.log_metric(metric, 'loss', val_loss)
-    #         candidate.log_metric(metric, 'acc', val_acc)
-
-
     def spawn_new_candidates(self, search_space):
         self.size = len(self.candidates)
         n_new = self.max_individuals - self.size
-        n_basic = n_new // 2
-        n_adv = n_new - n_basic
+        if n_new <= 0:
+            return
 
         rng = self.repro.np_rng
-
         new_generation = {}
-        for _ in range(n_basic):
-            arch = search_space.sample_architecture(rng=rng)
-            model = search_space.create_model(arch, task_type=self.task_type)
-            new_generation[self.individuals_created] = Candidate(model, arch, starting_instances=self.starting_instances, id_counter=self.individuals_created + 1)
-            self.individuals_created += 1
 
-        for _ in range(n_adv):
-            child_arch = breed_and_mutate(self.candidates, rng=rng)  # see next step
-            child_model = search_space.create_model(child_arch, task_type=self.task_type)
-            new_generation[self.individuals_created] = Candidate(child_model, child_arch, id_counter=self.individuals_created + 1, starting_instances=self.starting_instances)
-            self.individuals_created += 1
+        if self.size == 0:
+            # First generation: fill entirely with fresh randoms
+            for _ in range(n_new):
+                arch = search_space.sample_architecture(rng=rng)
+                model = search_space.create_model(arch, task_type=self.task_type)
+                new_generation[self.individuals_created] = Candidate(
+                    model, arch,
+                    starting_instances=self.starting_instances,
+                    id_counter=self.individuals_created + 1
+                )
+                self.individuals_created += 1
+        else:
+            # Mixed: some randoms, some bred
+            n_basic = n_new // 2
+            n_adv = n_new - n_basic
+
+            for _ in range(n_basic):
+                arch = search_space.sample_architecture(rng=rng)
+                model = search_space.create_model(arch, task_type=self.task_type)
+                new_generation[self.individuals_created] = Candidate(
+                    model, arch,
+                    starting_instances=self.starting_instances,
+                    id_counter=self.individuals_created + 1
+                )
+                self.individuals_created += 1
+
+            for _ in range(n_adv):
+                child_arch = breed_and_mutate(self.candidates, rng=rng)
+                child_model = search_space.create_model(child_arch, task_type=self.task_type)
+                new_generation[self.individuals_created] = Candidate(
+                    child_model, child_arch,
+                    id_counter=self.individuals_created + 1,
+                    starting_instances=self.starting_instances
+                )
+                self.individuals_created += 1
 
         self.candidates.update(new_generation)
         self.size = len(self.candidates)
 
 
 
+
     def prune_candidates(self,
-                        baseline_metric,
-                        base_drop=0.1,   # gentler start
-                        max_drop=0.3,   # softer ceiling
-                        elite_fraction=0.2,  # bigger elite buffer
-                        incubator_fraction=0.1,
-                        min_survivors=5):
+                    baseline_metric,
+                    base_drop=0.1,
+                    max_drop=0.3,
+                    elite_fraction=0.2,
+                    incubator_fraction=0.1,
+                    min_survivors=5,
+                    min_batches_protected=5):
         """
-        Softer unified pruning for better forecast stability.
-        - Does not prune aggressively until candidates have at least 3 val points.
-        - Larger elite buffer and optional incubator pool.
+        Softer unified pruning with per-candidate protection.
+        - Any candidate with < min_batches_protected is fully shielded.
+        - Convex LB + probability drop only apply to candidates with enough training.
+        - Larger elite and incubator buffers give more safety.
         """
 
         n = len(self.candidates)
@@ -284,31 +259,44 @@ class Population:
 
         b_ref = max(c.n_instances[-1] for c in self.candidates.values())
 
-        hopeless, survivors = [], []
+        hopeless, survivors, protected = [], [], []
         for k, cand in self.candidates.items():
-            # convex LB only if enough val points exist
-            if len(cand.get_metric("val", "acc")) >= 3 and convex_lb_discard(cand, baseline_metric, b_ref):
+            if cand.batches_trained < min_batches_protected:
+                # hard shield: too few batches, cannot be dropped
+                protected.append(k)
+                continue
+
+            # --- NEW CI PROTECTION ---
+            ci_high = cand.metrics.get("forecast_CI_high", cand.metrics.get("forecasted_val_acc", 0.0))
+            if ci_high >= baseline_metric:
+                # even if forecast mean is weak, upper CI says it *might* win → protect
+                protected.append(k)
+                continue
+
+            # --- hopeless check (convex LB discard) ---
+            if  convex_lb_discard(cand, baseline_metric, b_ref):
                 hopeless.append(k)
             else:
                 survivors.append(k)
 
-        # If too few val points, skip pruning entirely
-        if all(len(c.get_metric("val", "acc")) < 3 for c in self.candidates.values()):
+
+        # If no candidate has enough anchors, skip pruning entirely
+        if not survivors:
             self.worst_individuals = []
-            print(f"[Prune] Skipped pruning, not enough anchors yet.")
+            print(f"[Prune] Skipped: all candidates protected or under-trained.")
             return
 
         # Drop fraction
         frac = min(max_drop, base_drop + 0.01 * self.generations_completed)
         n_drop = int(len(survivors) * frac)
 
-        # --- Rank by adjusted probability (boost by training effort) ---
+        # Rank by adjusted probability (boost by training effort)
         ranked_by_prob = sorted(
             [
                 (
                     k,
                     self.candidates[k].metrics.get("p_above_goal", 0.0)
-                    * (1.0 + 0.2 * self.candidates[k].batches_trained)  # boost per batch
+                    * (1.0 + 0.2 * self.candidates[k].batches_trained)
                 )
                 for k in survivors
             ],
@@ -326,22 +314,24 @@ class Population:
             )[:elite_count]
         }
 
-        # Incubator buffer (keep some randoms alive)
+        # Incubator buffer
         incubator_count = max(1, int(incubator_fraction * n))
-        incubators = {k for k, _ in ranked_by_prob[-incubator_count:]}  # from the bottom
+        incubators = {k for k, _ in ranked_by_prob[-incubator_count:]}
 
         # Survivors by prob
         n_keep = max(min_survivors, len(survivors) - n_drop)
         keep_prob = {k for k, _ in ranked_by_prob[:n_keep]}
 
-        keep = keep_prob | elites | incubators
+        # Combine everything
+        keep = keep_prob | elites | incubators | set(protected)
         worst = [k for k in self.candidates if k not in keep] + hopeless
         worst = list(set(worst))
 
         self.worst_individuals = worst
 
-        print(f"[Prune] total={n}, hopeless={len(hopeless)}, "
-            f"dropped={len(worst)}, kept={n - len(worst)} ")
+        print(f"[Prune] total={n}, protected={len(protected)}, hopeless={len(hopeless)}, "
+            f"dropped={len(worst)}, kept={n - len(worst)}")
+
 
     def drop_worst_individuals(self):
         # Move all worst models to CPU first
@@ -365,12 +355,17 @@ class Population:
     def run_generation(self,
                    X_train, y_train, X_val, y_val,
                    baseline_metric,
-                   inject_fraction=0.2,
                    base_drop=0.2,
                    max_drop=0.5,
                    track_all_models=False):
 
         log = {"gen": self.generations_completed + 1}
+
+        # Phase 0: Exploration first
+        before_spawn = len(self.candidates)
+        self.spawn_new_candidates(self.search_space)
+        after_spawn = len(self.candidates)
+        log["spawned"] = after_spawn - before_spawn
 
         # --- Phase 1: Train ---
         before_train = len(self.candidates)
@@ -387,7 +382,7 @@ class Population:
         log["compute_this_gen"] = float(sum(total_epoch_times)) if total_epoch_times else 0.0
         # --- Phase 2: Forecast + scoring ---
         forecast_generation(self.candidates, dataset_size=len(X_train),
-                            min_val_points=3, growth=1.4, extra_full_passes=3)
+                            min_val_points=5, extra_full_passes=5)
         check_higher_than_baseline(self.candidates, baseline_metric)
         dynamic_goal = max(
             baseline_metric or 0.0,
@@ -409,13 +404,6 @@ class Population:
 
         log["hybrid_dropped"] = survivors_before - survivors_after
         log["survivors"] = survivors_after
-
-        # --- Phase 4: Exploration via trickle spawn ---
-        before_spawn = len(self.candidates)
-        self.spawn_new_candidates(self.search_space)
-        after_spawn = len(self.candidates)
-        log["spawned"] = after_spawn - before_spawn
-        log["final_population"] = after_spawn
 
         # --- Ledger update ---
         self.size = len(self.candidates)
@@ -442,8 +430,7 @@ class Population:
             baseline_metric,
             max_generations=20,
             time_budget=60,
-            inject_fraction=0.2,
-            base_drop=0.2,
+            base_drop=0.1,
             max_drop=0.5,
             track_all_models=False):
         """
@@ -469,7 +456,6 @@ class Population:
             self.candidates = self.run_generation(
                 X_train, y_train, X_val, y_val,
                 baseline_metric=baseline_metric,
-                inject_fraction=inject_fraction,
                 base_drop=base_drop,
                 max_drop=max_drop,
                 track_all_models=track_all_models
@@ -477,21 +463,22 @@ class Population:
 
             self.generations_completed += 1
 
+        # Drop from ledger any candidates without forecast (never trained)
+        self.current_snapshot = self.current_snapshot.dropna(subset=["forecasted_val_acc"])
+        self.current_snapshot = self.current_snapshot[self.current_snapshot['batches_trained'] > 5]
         # --- Final decision ---
         self.decision, self.eu, self.p, self.benefit, self.cost = self.worth_training_neural_bayes(
             baseline_metric=baseline_metric,
-            target_epochs=100,
-            cost_scale=1e-3
+            cost_scale=1
         )
         print("EBE process completed.")
 
         print("Training top by ES (fidelity check)")
-        self.fidelity_ledger = self.es_fidelity_from_ledger(
+        self.fidelity_ledger = self.fidelity_from_ledger(
             ledger_df=self.current_snapshot,   # <-- the latest ledger DataFrame
             X_train=X_train, y_train=y_train,
             X_val=X_val, y_val=y_val,
-            es_patience=30,
-            top_fraction=0.2
+            top_fraction=1
         )
 
         return self.current_snapshot
@@ -503,8 +490,9 @@ class Population:
         active_individuals = self.candidates.keys()
         for i in active_individuals:
             candidate = self.candidates[i]
-            current_candidates.append(candidate.build_dict())           
-        
+            cand_dict = candidate.build_dict()
+            current_candidates.append(cand_dict)
+
         if export_as == 'pandas':
             df = pd.DataFrame(current_candidates).sort_values(by='score', ascending=False)
             return df.copy(deep=True)
@@ -512,11 +500,9 @@ class Population:
             return json.dumps(current_candidates, indent=4)
 
 
-    def worth_training_neural_bayes(self, baseline_metric, target_epochs=10, cost_scale=1.0):
-        """
-        Simple cost model: projected_remaining_time = epoch_time * (target_epochs - epochs_trained)
-        cost = cost_scale * projected_remaining_time
-        """
+    def worth_training_neural_bayes(self, baseline_metric, cost_scale=1.0):
+        from forecaster import project_future_time
+
         best_cand = max(self.candidates.values(),
                         key=lambda c: c.metrics.get("p_above_goal", 0.0))
 
@@ -524,18 +510,15 @@ class Population:
         fcst  = best_cand.metrics.get("forecasted_val_acc", 0.0)
         benefit = max(0.0, fcst - baseline_metric)
 
-        epochs_done = getattr(best_cand, "epochs_trained", 0)
-        remaining   = max(0, target_epochs - epochs_done)
+        # Use projected future time instead of avg_epoch_time
+        t_future = best_cand.metrics.get("forecast_horizon_time")
+        projected_remaining_time = t_future - (best_cand.cumulative_times[-1] if best_cand.cumulative_times else 0.0)
 
-        # avg epoch time across the quick passes we’ve run (you have 1 right now, still fine)
-        epoch_times = best_cand.metrics.get("epoch_time", [])
-        avg_epoch_time = float(sum(epoch_times) / len(epoch_times)) if epoch_times else 0.0
-
-        projected_remaining_time = avg_epoch_time * remaining
         cost = cost_scale * projected_remaining_time
 
         EU = p * benefit - (1 - p) * cost
         return EU > 0, EU, p, benefit, cost
+
 
     
 
@@ -555,9 +538,9 @@ class Population:
         return df
     
 
-    def es_fidelity_from_ledger(self, ledger_df, 
+    def fidelity_from_ledger(self, ledger_df, 
                             X_train, y_train, X_val, y_val,
-                            es_patience=30, top_fraction=0.2):
+                            top_fraction=0.9):
         """
         Rebuild models from ledger rows and retrain them with ES
         to compare forecast vs actual performance.
@@ -602,12 +585,10 @@ class Population:
             )
 
             # train with ES
-            results = model.es_train(
+            results = model.horizon_train(
                 candidate=cand,
                 train_loader=train_loader,
                 val_loader=val_loader,
-                es_patience=es_patience,
-                verbose=True,
                 task_type=self.task_type,
                 return_lc=True
             )
@@ -624,14 +605,14 @@ class Population:
                 "learning_curve": lc
             })
         
-        for rec in fidelity_records:
-            print("DEBUG fidelity_record:")
-            for k, v in rec.items():
-                print(f"  {k}: {type(v)} -> {v if not isinstance(v, list) else f'list(len={len(v)})'}")
 
-
-        fidelity_ledger = pd.DataFrame(fidelity_records).sort_values("fidelity_val_acc", ascending=False)
+        # now build the ledger only with those that passed the threshold
+        fidelity_ledger = pd.DataFrame(fidelity_records).sort_values(
+            "fidelity_val_acc", ascending=False, na_position="last"
+        )
         self.fidelity_ledger = fidelity_ledger
+
+
         return fidelity_ledger
     
     def compare_forecast_vs_fidelity(self):

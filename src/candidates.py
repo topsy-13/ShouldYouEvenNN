@@ -132,14 +132,6 @@ class Candidate:
             flat_metrics[f"last_{key}"] = values[-1] if values else None
 
         # --- NEW: summarize timing ---
-        batch_times = self.metrics.get("efforts", [])
-        if isinstance(batch_times, list) and len(batch_times) > 0:
-            flat_metrics["total_batch_time"] = float(sum(batch_times))
-            flat_metrics["avg_batch_time"] = float(np.mean(batch_times))
-        else:
-            flat_metrics["total_batch_time"] = 0.0
-            flat_metrics["avg_batch_time"] = 0.0
-
         epoch_times = self.metrics.get("epoch_time", [])
         if isinstance(epoch_times, list) and len(epoch_times) > 0:
             flat_metrics["total_epoch_time"] = float(sum(epoch_times))
