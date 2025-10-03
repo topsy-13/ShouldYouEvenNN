@@ -1,81 +1,119 @@
 # region Imports
 import os
+import torch
 import json
 import pandas as pd
 
-import basic_models_experiment
+import basic_models_experiment 
 import naive_experiment
 import mlp_basic_experiment
-import ebe_experiment
-import es_eval_from_ledger
+# import ebe_experiment
+
+import data_preprocessing as dp
 
 # endregion
 
 
-def main(dataset_name, data_id, budget_factor=3):
+def main(dataset_name, data_id, seed):
+    # Load Dataset
+    exp_id = f'{data_id}_{seed}'
+    exp_path = f'./experiments/testing/{exp_id}'
+    # os.makedirs(exp_path, exist_ok=True)
+    results_dict = {
+        'exp_id': exp_id,
+        'data_id': data_id,
+        'seed': seed,
+    }
+    with open(f'{exp_path}_results.json', 'w') as f:
+        json.dump(results_dict, f, indent=4)        
 
     print(f'Starting Experiment for {dataset_name} | {data_id}')
+    # print(f'Experiment ID: {exp_id}')
+    print(f'- Loading Dataset {dataset_name} | {data_id}')
+
+    X_train, y_train, X_val, y_val, X_test, y_test = dp.get_preprocessed_data(
+        dataset_id=data_id,
+        scaling=True,
+        random_seed=seed,
+        return_as='tensor',
+        task_type='classification',
+        categorical_strategy='label', 
+        verbose=False
+    )
+    X_analysis = torch.cat([X_train, X_val], dim=0)
+    y_analysis = torch.cat([y_train, y_val], dim=0)
+    n_rows = int(X_analysis.shape[0])
+    n_features = int(X_analysis.shape[1])
+
+    results_dict['n_rows'] = n_rows
+    results_dict['n_features'] = n_features
     # ML Testing
-    print(' -Testing Standard Models')
-    basic_models_experiment.main(data_id=data_id, seed=SEED)
-    # Standard MLP
-    print(' -Testing Standard MLP')
-    mlp_basic_experiment.main(data_id=data_id, seed=SEED)
+    print(' -Testing HistGradientBoosting')
+    hgb_results = basic_models_experiment.main(data_id=data_id, seed=seed,
+                                 X_analysis=X_analysis, y_analysis=y_analysis, 
+                                 X_test=X_test, y_test=y_test)
+    results_dict.update(hgb_results)
+    with open(f'{exp_path}_results.json', 'w') as f:
+        json.dump(results_dict, f, indent=4)  
+
+    # # Standard MLP
+    print(' -Testing Standard MLP') # MLPClassifier(random_state=seed, max_iter=1000, n_iter_no_change=100)
+    mlp_results = mlp_basic_experiment.main(data_id, SEED, 
+                              X_analysis, y_analysis, X_test, y_test) 
+    results_dict.update(mlp_results)
+    with open(f'{exp_path}_results.json', 'w') as f:
+        json.dump(results_dict, f, indent=4)  
+
     # NAML Testing
     print(' -Testing NaiveAutoML')
-    naive_experiment.main(data_id=data_id, seed=SEED)
-    # EBE
-    print(' -Testing EBE')
-    while True:
-            try:
-                ebe_experiment.main(data_id=data_id, seed=SEED,
-                                    time_budget_factor=budget_factor)
-                break  # success, escape the loop
-            except TimeoutError as e:
-                print(f"{dataset_name} ({data_id}) failed with budget {budget_factor}: {e}")
-                budget_factor += 1
-                print(f"Retrying {dataset_name} with budget {budget_factor}...")
-
-    # Training By Es
-    print(' -Testing EBE-ES')
-    ebe_results = pd.read_csv(f'./experiments/ebe_vs/v2/ebe/{data_id}_{SEED}_EBE.csv') 
-    es_eval_from_ledger.evaluate_from_ledger(ebe_results,
-                                        data_id=data_id, seed=SEED,
-                                        top_fraction=0.2)
-    # Oracle EBE
-    # print(' -Testing EBE-Oracle')
-    # oracle_experiment.main(data_id=data_id, seed=SEED,
-    #                        n_max_epochs=1000, es_patience=150)
-
-    print('Experiment concluded')
+    naive_results = naive_experiment.main(data_id, SEED, 
+                          X_analysis, y_analysis, X_test, y_test)
+    results_dict.update(naive_results)
+    
+    with open(f'{exp_path}_results.json', 'w') as f:
+        json.dump(results_dict,f, indent=4)  
+    
+    # # EBE
+    # print(' -Testing EBE')
+    # ebe_results = ebe_experiment.main(data_id, SEED, 
+    #                     X_train,y_train, 
+    #                     X_val, y_val,
+    #                     X_test, y_test,
+    #                     pop_size=30, 
+    #                     starting_instances_proportion=0.05,
+    #                     time_budget_factor=3)
+    # results_dict.update(ebe_results)
+    # with open(f'{exp_path}_results.json', 'w') as f:
+    #     json.dump(results_dict, f, indent=4)  
+    # print('Experiment concluded')
 
 
 if __name__ == "__main__":
     
     # Datasets to test
-    SEED = 14125
-    dataset_ids_path = 'experiments/datasets/openml_datasets.json'
+    SEED = 13
+    dataset_ids_path = 'experiments/datasets/openml_datasets2.json'
     with open(dataset_ids_path) as f:
         dataset_ids = json.load(f)
-    omit_ids = [
-                1111, 
-                ] # 1111 got NAns
+    # omit_ids = [
+    #             1111, 
+    #             ] # 1111 got NAns
 
     crashed = {}
-
+    # dataset_ids = {"GesturePhaseSegmentationProcessed": 4538,}
     for dataset_name, data_id in dataset_ids.items():
-        if data_id not in omit_ids:
-            try:
-                main(dataset_name=dataset_name, data_id=data_id, budget_factor=3)
-            except Exception as e:
-                print(f"{dataset_name} ({data_id}) crashed: {e}")
-                crashed[data_id] = str(e)
-        else:
-            pass
-
+        try:
+            main(dataset_name=dataset_name,
+                 data_id=data_id, 
+                 seed=SEED)
+        except Exception as e:
+            print(f"{dataset_name} ({data_id}) crashed: {e}")
+            crashed[data_id] = str(e)
+            
     # export all crashes into a single JSON
     with open("crashed_datasets_pipeline.json", "w") as f:
         json.dump(crashed, f, indent=4)
 
+    # main(dataset_name='Vehicle', data_id=54, seed=SEED)
     print('There is hope')
-    os.system("shutdown /s /t 1")
+    # os.system("shutdown /s /t 1")

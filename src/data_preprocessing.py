@@ -24,7 +24,8 @@ def load_openml_dataset(dataset_id=334, verbose=False):
 
 def preprocess_features(X_train, X_val, X_test,
                         categorical_strategy="label", verbose=False):
-    """Fit encoders on train only, apply to val/test."""
+    """Fit encoders on train only, apply to val/test safely."""
+
     categorical_columns = X_train.select_dtypes(include=['object', 'category']).columns.tolist()
 
     if categorical_columns:
@@ -32,33 +33,45 @@ def preprocess_features(X_train, X_val, X_test,
             print(f"Categorical features detected: {categorical_columns}")
 
         if categorical_strategy == "onehot":
-            # Fit one-hot encoder on train only
+            from sklearn.preprocessing import OneHotEncoder
             encoder = OneHotEncoder(handle_unknown="ignore", sparse=False)
             X_train_enc = pd.DataFrame(encoder.fit_transform(X_train[categorical_columns]))
             X_val_enc   = pd.DataFrame(encoder.transform(X_val[categorical_columns]))
             X_test_enc  = pd.DataFrame(encoder.transform(X_test[categorical_columns]))
 
-            # Drop original cat columns + concat encoded
+            # Drop originals and concat encoded
             X_train = X_train.drop(columns=categorical_columns).reset_index(drop=True)
             X_val   = X_val.drop(columns=categorical_columns).reset_index(drop=True)
             X_test  = X_test.drop(columns=categorical_columns).reset_index(drop=True)
 
-            X_train = pd.concat([X_train.reset_index(drop=True), X_train_enc], axis=1)
-            X_val   = pd.concat([X_val.reset_index(drop=True), X_val_enc], axis=1)
-            X_test  = pd.concat([X_test.reset_index(drop=True), X_test_enc], axis=1)
+            X_train = pd.concat([X_train, X_train_enc], axis=1)
+            X_val   = pd.concat([X_val, X_val_enc], axis=1)
+            X_test  = pd.concat([X_test, X_test_enc], axis=1)
 
         elif categorical_strategy == "label":
-            # Label encode column by column (fit on train, apply to others)
+            from sklearn.preprocessing import LabelEncoder
             for col in categorical_columns:
                 le = LabelEncoder()
-                X_train[col] = le.fit_transform(X_train[col].astype(str))
-                X_val[col]   = le.transform(X_val[col].astype(str))
-                X_test[col]  = le.transform(X_test[col].astype(str))
+                le.fit(X_train[col].astype(str))
+
+                # extend classes_ with "__other__"
+                le_classes = list(le.classes_)
+                if "__other__" not in le_classes:
+                    le_classes.append("__other__")
+                le.classes_ = np.array(le_classes)
+
+                def safe_transform(series):
+                    return series.astype(str).map(lambda x: x if x in le.classes_ else "__other__")
+
+                X_train[col] = le.transform(safe_transform(X_train[col]))
+                X_val[col]   = le.transform(safe_transform(X_val[col]))
+                X_test[col]  = le.transform(safe_transform(X_test[col]))
 
         else:
             raise ValueError("categorical_strategy must be 'onehot' or 'label'.")
 
     return X_train, X_val, X_test
+
 
 
 import numpy as np
@@ -67,7 +80,8 @@ import pandas as pd
 def preprocess_target(y_train, y_val, y_test, encode_labels=True, min_class_count=2, verbose=False):
     """
     Fit label encoder on y_train, apply to val/test safely.
-    Rare classes (fewer than min_class_count in the whole dataset) are mapped to 'other'.
+    Rare classes (fewer than min_class_count in the whole dataset) are mapped to '__other__'.
+    Any unseen classes in val/test are also mapped to '__other__'.
     """
     if not encode_labels:
         return y_train, y_val, y_test
@@ -78,7 +92,7 @@ def preprocess_target(y_train, y_val, y_test, encode_labels=True, min_class_coun
     rare_classes = counts[counts < min_class_count].index.tolist()
 
     if rare_classes and verbose:
-        print(f"Collapsing rare classes {rare_classes} -> 'other'")
+        print(f"Collapsing rare classes {rare_classes} -> '__other__'")
 
     def replace_rare(y):
         return np.array([lbl if lbl not in rare_classes else "__other__" for lbl in y])
@@ -87,16 +101,24 @@ def preprocess_target(y_train, y_val, y_test, encode_labels=True, min_class_coun
     y_val   = replace_rare(y_val)
     y_test  = replace_rare(y_test)
 
-    # Fit LabelEncoder on train
+    # Fit LabelEncoder only on train (plus the '__other__' bucket if needed)
     from sklearn.preprocessing import LabelEncoder
     le = LabelEncoder()
-    y_train_enc = le.fit_transform(y_train)
+    unique_train = np.unique(y_train).tolist()
+    if "__other__" in y_train or "__other__" in y_val or "__other__" in y_test:
+        if "__other__" not in unique_train:
+            unique_train.append("__other__")
+    le.fit(unique_train)
 
-    # Map val/test safely
-    y_val_enc  = le.transform(y_val)
-    y_test_enc = le.transform(y_test)
+    def safe_encode(le, y):
+        return np.array([lbl if lbl in le.classes_ else "__other__" for lbl in y])
+
+    y_train_enc = le.transform(safe_encode(le, y_train))
+    y_val_enc   = le.transform(safe_encode(le, y_val))
+    y_test_enc  = le.transform(safe_encode(le, y_test))
 
     return y_train_enc, y_val_enc, y_test_enc
+
 
 
 def split_data(X, y, test_size=0.2, val_size=0.2, random_seed=None, stratify=True):

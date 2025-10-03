@@ -1,5 +1,4 @@
 import numpy as np
-import random
 
 import torch
 import torch.nn as nn
@@ -14,12 +13,15 @@ import json
 
 
 # from baseline_models import get_models_and_baseline_metric
-from forecaster import forecast_generation, annotate_probabilities
+from forecaster import forecast_generation
 from candidates import Candidate
 from evolution import breed_and_mutate
 from scoring import score_individuals, convex_lb_discard, compute_and_log_p_above_goal, check_higher_than_baseline
 from utils import init_global_seed, make_repro_context
 
+
+import pandas as pd
+from architecture_generator import create_model_from_row
 # region Generations
 
 class Population:
@@ -56,7 +58,7 @@ class Population:
 
     def train_generation(self, X_train, y_train, 
                      training_mode='oe', 
-                     X_val=None, y_val=None, 
+                     X_val=None, y_val=None, time_budget=None,
                      **kwargs):
         """Train all candidates."""
 
@@ -136,18 +138,24 @@ class Population:
             return epoch_time_acc
 
         """Train all candidates in the population."""
+        start_time = time.time()
         for i in list(self.candidates.keys()):
+            # Check if time budget exceeded
+            if time_budget is not None and time.time() - start_time >= time_budget:
+                print(f"[Train] Time budget of {time_budget}s exceeded, stopping training.")
+                break
+
             candidate = self.candidates[i]
             model = candidate.model
             batch_size = candidate.batch_size
 
             n_instances = min(candidate.n_instances[-1], len(X_train))
 
-            # Use the shared RNG to choose indices (see sample_data change)
+            # Use the shared RNG to choose indices
             X_sampled, y_sampled = sample_data(
                 X_train, y_train, n_instances,
                 mode="absolute",
-                seed=None,                    # let rng drive it
+                seed=None,                   
                 task_type=self.task_type,
                 rng=self.repro.np_rng         # NEW
             )
@@ -357,7 +365,8 @@ class Population:
                    baseline_metric,
                    base_drop=0.2,
                    max_drop=0.5,
-                   track_all_models=False):
+                   track_all_models=False,
+                   time_budget=None):
 
         log = {"gen": self.generations_completed + 1}
 
@@ -371,7 +380,8 @@ class Population:
         before_train = len(self.candidates)
         self.train_generation(X_train, y_train,
                             training_mode="oe",
-                            X_val=X_val, y_val=y_val)
+                            X_val=X_val, y_val=y_val, 
+                            time_budget=time_budget)
         log["trained"] = before_train
 
         # --- Compute estimate (wall-time) ---
@@ -422,7 +432,6 @@ class Population:
 
 
         return self.candidates
-
     
 
     def run_ebe(self,
@@ -466,7 +475,8 @@ class Population:
                 baseline_metric=baseline_metric,
                 base_drop=base_drop,
                 max_drop=max_drop,
-                track_all_models=track_all_models
+                track_all_models=track_all_models, 
+                time_budget=time_budget - elapsed
             )
             self.generations_completed += 1
 
@@ -550,17 +560,18 @@ class Population:
         return self.current_snapshot
 
 
-    def fidelity_training(self, X_train, y_train, X_val, y_val):
+    def fidelity_training(self, X_train, y_train, X_val, y_val, 
+                          X_test=None, y_test=None):
         # === Fidelity check ===
         print("Training top by ES (fidelity check)")
         self.fidelity_ledger = self.fidelity_from_ledger(
             ledger_df=self.current_snapshot,
             X_train=X_train, y_train=y_train,
             X_val=X_val, y_val=y_val,
-            top_fraction=1 # all of them
+            top_fraction=1, # all of them,
+            X_test=X_test, y_test=y_test
         )
         return self.fidelity_ledger
-
 
     
 
@@ -585,28 +596,31 @@ class Population:
             return json.dumps(current_candidates, indent=4)
 
 
-    def worth_training_neural_bayes(self, baseline_metric, cost_scale=1.0):
-        from forecaster import project_future_time
-
+    def worth_training_neural_bayes(self, baseline_metric, cost_scale=1.0, tol=0.0):
         best_cand = max(self.candidates.values(),
                         key=lambda c: c.metrics.get("p_above_goal", 0.0))
 
-        p     = best_cand.metrics.get("p_above_goal", 0.0)
-        fcst  = best_cand.metrics.get("forecasted_val_acc", 0.0)
-        benefit = max(0.0, fcst - baseline_metric)
+        p    = best_cand.metrics.get("p_above_goal", 0.0)
+        fcst = best_cand.metrics.get("forecasted_val_acc", 0.0)
+        benefit = max(0.02, fcst - baseline_metric)
 
-        # Use projected future time instead of avg_epoch_time
-        t_future = best_cand.metrics.get("forecast_horizon_time")
-        projected_remaining_time = t_future - (best_cand.cumulative_times[-1] if best_cand.cumulative_times else 0.0)
+        t_future = best_cand.metrics.get("forecast_horizon_time") or 0.0
+        t_spent  = best_cand.cumulative_times[-1] if best_cand.cumulative_times else 0.0
+        projected_remaining_time = max(0.0, t_future - t_spent)
 
-        cost = cost_scale * projected_remaining_time
+        norm_cost = projected_remaining_time / (projected_remaining_time + 1.0)
 
-        EU = p * benefit - (1 - p) * cost
-        return EU > 0, EU, p, benefit, cost
+        gen = getattr(self, "generations_completed", 0)
+        exploration_weight = max(0.3, 1.0 - 0.01 * gen)
+
+        EU = (p * benefit * exploration_weight) \
+            - (1 - p) * 0.05 \
+            - cost_scale * 0.1 * norm_cost
+
+        return EU > tol, EU, p, benefit, projected_remaining_time
 
 
     
-
     def final_decision(self):
         return {
             'ShouldYouEvenNN?': self.decision,
@@ -624,11 +638,16 @@ class Population:
     
 
     def fidelity_from_ledger(self, ledger_df, 
-                            X_train, y_train, X_val, y_val,
-                            top_fraction=1):
+                         X_train, y_train, 
+                         X_val, y_val,
+                         X_test=None, y_test=None,
+                         baseline_metric=None,
+                         test_metric=None,
+                         top_fraction=0.1):
         """
         Rebuild models from ledger rows and retrain them with ES
         to compare forecast vs actual performance.
+        Also evaluates on test set if provided.
         """
 
         import pandas as pd
@@ -641,7 +660,9 @@ class Population:
 
         fidelity_records = []
 
+        counter_candidate = 1
         for _, row in chosen.iterrows():
+            print(f"Processing candidate {counter_candidate} with id {row['id']} out of {n_keep}")
             # rebuild model from the ledger row
             model = create_model_from_row(
                 row,
@@ -677,12 +698,30 @@ class Population:
                 task_type=self.task_type,
                 return_lc=True
             )
-
             best_train_loss, best_train_acc, best_val_loss, best_val_acc, lc = results
+            counter_candidate += 1
 
             # --- CLEANUP: ensure fidelity_val_acc is always scalar or NaN ---
             if isinstance(best_val_acc, list):
                 best_val_acc = best_val_acc[-1] if best_val_acc else np.nan
+
+            # --- NEW: evaluate on test set if provided ---
+            test_loss, test_acc, beats_baseline = None, None, None
+            if X_test is not None and y_test is not None:
+                test_loader = dp.create_dataloader(
+                    X=X_test, y=y_test,
+                    batch_size=cand.batch_size,
+                    generator=self.repro.torch_gen,
+                    seed_worker=self.repro.seed_worker,
+                    shuffle=False
+                )
+                test_loss, test_acc = model.evaluate(test_loader)
+                cand.log_metric("test", "loss", test_loss)
+                cand.log_metric("test", "acc", test_acc)
+
+                # compare with baseline if provided
+                if baseline_metric is not None and test_acc is not None:
+                    beats_baseline = bool(test_acc >= test_metric)
 
             fidelity_records.append({
                 "id": cand.id,
@@ -695,25 +734,21 @@ class Population:
                 "fidelity_train_acc": best_train_acc,
                 "fidelity_val_loss": best_val_loss,
                 "learning_curve": lc,
+                "test_acc": test_acc,
+                "test_loss": test_loss,
+                "beats_baseline": beats_baseline  # <<< NEW
             })
 
-        # now build the ledger only with those that passed the threshold
         fidelity_ledger = pd.DataFrame(fidelity_records)
-        # DEBUG: inspect the dtype and problematic entries
-        print("\n[DEBUG] fidelity_val_acc types:")
-        print(fidelity_ledger["fidelity_val_acc"].apply(type).value_counts())
-        print(fidelity_ledger[["id", "fidelity_val_acc"]])
-
-        # proceed to drop and sort
         fidelity_ledger = fidelity_ledger.dropna(subset=["fidelity_val_acc"]).sort_values(
             "fidelity_val_acc", ascending=False, na_position="last"
         )
 
         self.fidelity_ledger = fidelity_ledger
-
-
         return fidelity_ledger
-    
+
+
+
     def compare_forecast_vs_fidelity(self):
         """
         Compare forecasted validation accuracy against actual ES accuracy.

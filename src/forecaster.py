@@ -163,41 +163,6 @@ def forecast_generation(candidates, dataset_size,
             cand.metrics["forecasted_val_acc"] = float(np.clip(fc, 0.0, 1.0))
 
 
-
-# EPS = 1e-8
-
-# def sigmoid_prob(fcst, slope, var, goal, temp=0.05,
-#                  slope_penalty_scale=5.0, var_penalty_scale=1.0):
-#     margin = fcst - goal
-#     slope_factor = np.exp(-max(0.0, slope) * slope_penalty_scale)
-#     penalty = slope_penalty_scale * 0.1 * slope_factor + var_penalty_scale * var
-#     adjusted_margin = margin - penalty
-#     prob = 1.0 / (1.0 + np.exp(-adjusted_margin / (temp + EPS)))
-#     return float(np.clip(prob, 0.0, 1.0))
-
-
-# def mc_prob(fcst, var, goal, n_samples=500, min_std=1e-3):
-#     std = max(min_std, np.sqrt(max(var, 0.0)))
-#     samples = np.random.normal(loc=fcst, scale=std, size=n_samples)
-#     return float(np.mean(samples > goal))
-
-def annotate_probabilities(candidates, goal_metric, temp=0.05):
-    """
-    Assign probability of surpassing the goal using only the rational forecast.
-    """
-    for cand in candidates.values():
-        fcst = cand.metrics.get("forecasted_val_acc", 0.0)
-
-        # Margin over the baseline
-        margin = fcst - goal_metric
-
-        # Convert margin into probability
-        prob = 1.0 / (1.0 + np.exp(-margin / (temp + 1e-8)))
-        prob = float(np.clip(prob, 0.0, 1.0))
-
-        cand.metrics["p_above_goal"] = prob
-
-
 import numpy as np
 
 def get_val_acc_vs_time(candidate):

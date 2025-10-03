@@ -1,0 +1,13 @@
+{
+    "exp_id": "1457_13",
+    "data_id": 1457,
+    "seed": 13,
+    "n_rows": 1200,
+    "n_features": 10000,
+    "hgb_accuracy": 0.72,
+    "hgb_training_time_sec": 633.8489928245544,
+    "mlp_training_time": 3.8006818294525146,
+    "mlp_train_acc": 1.0,
+    "mlp_train_loss": 0.0007044296628201125,
+    "mlp_test_acc": 0.6133333333333333
+}

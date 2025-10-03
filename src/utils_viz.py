@@ -35,7 +35,7 @@ def plot_generation_dynamics(generation_logs, title="Population dynamics"):
 
     plt.title(title)
     plt.tight_layout()
-    plt.show()
+    # plt.show()
 
 
 
@@ -75,7 +75,7 @@ def plot_forecast_vs_fidelity(fidelity_report, title="Forecast vs Fidelity"):
 
     plt.suptitle(title)
     plt.tight_layout()
-    plt.show()
+    # plt.show()
 
 
 def plot_es_learning_curve_from_ledger(row, title=None):
@@ -143,4 +143,3 @@ def plot_es_learning_curve_from_ledger(row, title=None):
     # Despine for aesthetics
     sns.despine()
     plt.tight_layout()
-    plt.show()
