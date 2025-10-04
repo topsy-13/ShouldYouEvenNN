@@ -69,50 +69,48 @@ def load_openml_dataset(dataset_id: int, *, verbose: bool = False) -> Tuple[pd.D
     return X, y
 
 
-def split_data(
-    X: pd.DataFrame,
-    y: Sequence,
-    *,
-    test_size: float = 0.2,
-    val_size: float = 0.2,
-    random_seed: Optional[int] = None,
-    stratify: bool = True,
-) -> DatasetSplits:
-    """Split a dataset into train/validation/test partitions."""
+def preprocess_features(X_train, X_val, X_test,
+                        categorical_strategy="label", verbose=False):
+    """Fit encoders on train only, apply to val/test safely."""
 
-    stratify_y = y if stratify else None
-
-    X_train_val, X_test, y_train_val, y_test = train_test_split(
-        X,
-        y,
-        test_size=test_size,
-        random_state=random_seed,
-        stratify=stratify_y,
-    )
-
-    stratify_train_val = y_train_val if stratify else None
-    X_train, X_val, y_train, y_val = train_test_split(
-        X_train_val,
-        y_train_val,
-        test_size=val_size,
-        random_state=random_seed,
-        stratify=stratify_train_val,
-    )
+    categorical_columns = X_train.select_dtypes(include=['object', 'category']).columns.tolist()
 
     return DatasetSplits(X_train, X_val, X_test, y_train, y_val, y_test)
 
+        if categorical_strategy == "onehot":
+            from sklearn.preprocessing import OneHotEncoder
+            encoder = OneHotEncoder(handle_unknown="ignore", sparse=False)
+            X_train_enc = pd.DataFrame(encoder.fit_transform(X_train[categorical_columns]))
+            X_val_enc   = pd.DataFrame(encoder.transform(X_val[categorical_columns]))
+            X_test_enc  = pd.DataFrame(encoder.transform(X_test[categorical_columns]))
 
-def _is_categorical(series: pd.Series) -> bool:
-    return series.dtype == "object" or series.dtype.name == "category" or not is_numeric_dtype(series)
+            # Drop originals and concat encoded
+            X_train = X_train.drop(columns=categorical_columns).reset_index(drop=True)
+            X_val   = X_val.drop(columns=categorical_columns).reset_index(drop=True)
+            X_test  = X_test.drop(columns=categorical_columns).reset_index(drop=True)
 
+            X_train = pd.concat([X_train, X_train_enc], axis=1)
+            X_val   = pd.concat([X_val, X_val_enc], axis=1)
+            X_test  = pd.concat([X_test, X_test_enc], axis=1)
 
-def preprocess_features(
-    splits: DatasetSplits,
-    *,
-    categorical_strategy: Literal["label", "onehot"] = "label",
-    verbose: bool = False,
-) -> DatasetSplits:
-    """Encode categorical features consistently across splits."""
+        elif categorical_strategy == "label":
+            from sklearn.preprocessing import LabelEncoder
+            for col in categorical_columns:
+                le = LabelEncoder()
+                le.fit(X_train[col].astype(str))
+
+                # extend classes_ with "__other__"
+                le_classes = list(le.classes_)
+                if "__other__" not in le_classes:
+                    le_classes.append("__other__")
+                le.classes_ = np.array(le_classes)
+
+                def safe_transform(series):
+                    return series.astype(str).map(lambda x: x if x in le.classes_ else "__other__")
+
+                X_train[col] = le.transform(safe_transform(X_train[col]))
+                X_val[col]   = le.transform(safe_transform(X_val[col]))
+                X_test[col]  = le.transform(safe_transform(X_test[col]))
 
     X_train, X_val, X_test = splits.X_train.copy(), splits.X_val.copy(), splits.X_test.copy()
     categorical_columns = [col for col in X_train.columns if _is_categorical(X_train[col])]
@@ -153,18 +151,16 @@ def preprocess_features(
     else:
         raise ValueError("categorical_strategy must be either 'label' or 'onehot'.")
 
-    return DatasetSplits(X_train, X_val, X_test, splits.y_train, splits.y_val, splits.y_test)
 
+import numpy as np
+import pandas as pd
 
-def preprocess_target(
-    splits: DatasetSplits,
-    *,
-    encode_labels: bool = True,
-    min_class_count: int = 2,
-    verbose: bool = False,
-) -> DatasetSplits:
-    """Optionally encode labels and collapse rare classes into ``__other__``."""
-
+def preprocess_target(y_train, y_val, y_test, encode_labels=True, min_class_count=2, verbose=False):
+    """
+    Fit label encoder on y_train, apply to val/test safely.
+    Rare classes (fewer than min_class_count in the whole dataset) are mapped to '__other__'.
+    Any unseen classes in val/test are also mapped to '__other__'.
+    """
     if not encode_labels:
         return splits
 
@@ -186,12 +182,21 @@ def preprocess_target(
     y_val = replace_rare(y_val)
     y_test = replace_rare(y_test)
 
-    encoder = LabelEncoder()
-    y_train_enc = encoder.fit_transform(y_train)
-    y_val_enc = encoder.transform(y_val)
-    y_test_enc = encoder.transform(y_test)
+    # Fit LabelEncoder only on train (plus the '__other__' bucket if needed)
+    from sklearn.preprocessing import LabelEncoder
+    le = LabelEncoder()
+    unique_train = np.unique(y_train).tolist()
+    if "__other__" in y_train or "__other__" in y_val or "__other__" in y_test:
+        if "__other__" not in unique_train:
+            unique_train.append("__other__")
+    le.fit(unique_train)
 
-    return DatasetSplits(splits.X_train, splits.X_val, splits.X_test, y_train_enc, y_val_enc, y_test_enc)
+    def safe_encode(le, y):
+        return np.array([lbl if lbl in le.classes_ else "__other__" for lbl in y])
+
+    y_train_enc = le.transform(safe_encode(le, y_train))
+    y_val_enc   = le.transform(safe_encode(le, y_val))
+    y_test_enc  = le.transform(safe_encode(le, y_test))
 
 
 def scale_features(
@@ -201,35 +206,186 @@ def scale_features(
 ) -> DatasetSplits:
     """Apply feature scaling using the provided scaler type."""
 
-    if scaler_type == "standard":
-        scaler = StandardScaler()
-    elif scaler_type == "minmax":
-        scaler = MinMaxScaler()
-    else:
-        raise ValueError("scaler_type must be either 'standard' or 'minmax'.")
+
+def split_data(X, y, test_size=0.2, val_size=0.2, random_seed=None, stratify=True):
+    """Splits data into train, validation, and test sets with optional stratification."""
+    
+    stratify_y = y if stratify else None
 
     X_train = scaler.fit_transform(splits.X_train)
     X_val = scaler.transform(splits.X_val)
     X_test = scaler.transform(splits.X_test)
 
-    return DatasetSplits(X_train, X_val, X_test, splits.y_train, splits.y_val, splits.y_test)
+    return X_train, X_val, X_test, y_train, y_val, y_test
+
+def scale_features(X_train, X_val, X_test, scaler_type="standard"):
+    scalers = {
+        'standard': StandardScaler(),
+        'minmax': MinMaxScaler()
+    }
+    scaler = scalers.get(scaler_type, StandardScaler())
+    X_train = scaler.fit_transform(X_train)
+    X_val   = scaler.transform(X_val)
+    X_test  = scaler.transform(X_test)
+    return X_train, X_val, X_test
+
+from sklearn.impute import SimpleImputer
+
+def impute_features(X_train, X_val, X_test,
+                    num_strategy="mean", cat_strategy="most_frequent",
+                    verbose=False):
+    """
+    Impute missing values separately for numeric and categorical features.
+    
+    Parameters
+    ----------
+    num_strategy : str
+        'mean', 'median', or 'constant' for numeric columns.
+    cat_strategy : str
+        'most_frequent' or 'constant' for categorical columns.
+    """
+    # Identify types
+    num_cols = X_train.select_dtypes(include=["int64", "float64"]).columns
+    cat_cols = X_train.select_dtypes(include=["object", "category"]).columns
+
+    # --- numeric ---
+    if len(num_cols) > 0:
+        num_imputer = SimpleImputer(strategy=num_strategy)
+        X_train[num_cols] = num_imputer.fit_transform(X_train[num_cols])
+        X_val[num_cols]   = num_imputer.transform(X_val[num_cols])
+        X_test[num_cols]  = num_imputer.transform(X_test[num_cols])
+
+    # --- categorical ---
+    if len(cat_cols) > 0:
+        cat_imputer = SimpleImputer(strategy=cat_strategy)
+        X_train[cat_cols] = cat_imputer.fit_transform(X_train[cat_cols])
+        X_val[cat_cols]   = cat_imputer.transform(X_val[cat_cols])
+        X_test[cat_cols]  = cat_imputer.transform(X_test[cat_cols])
+
+    if verbose:
+        n_missing = (
+            X_train.isna().sum().sum() +
+            X_val.isna().sum().sum() +
+            X_test.isna().sum().sum()
+        )
+        print(f"Imputation applied. Remaining NaNs: {n_missing}")
+
+    return X_train, X_val, X_test
 
 
-def convert_to_tensors(
-    splits: DatasetSplits,
-    *,
-    task_type: Literal["classification", "regression"] = "classification",
-) -> DatasetSplits:
-    """Convert arrays to ``torch.Tensor`` objects while respecting the task type."""
+def get_preprocessed_data(dataset_id=334, scaling=True, 
+                          scaler_type="standard",
+                          categorical_strategy="label", return_as="tensor",
+                          random_seed=None, X=None, y=None,
+                          task_type="classification", verbose=False):
 
-    X_train = torch.as_tensor(splits.X_train, dtype=torch.float32)
-    X_val = torch.as_tensor(splits.X_val, dtype=torch.float32)
-    X_test = torch.as_tensor(splits.X_test, dtype=torch.float32)
+    if dataset_id is not None:
+        dataset = openml.datasets.get_dataset(dataset_id)
+        if verbose:
+            print(f"Loading Dataset: {dataset.name}")
+        X, y, _, _ = dataset.get_data(target=dataset.default_target_attribute)
 
-    if task_type == "classification":
-        target_dtype = torch.long
-    elif task_type == "regression":
-        target_dtype = torch.float32
+    # Split raw first
+    X_train, X_val, X_test, y_train, y_val, y_test = split_data(X, y, random_seed=random_seed)
+
+    # --- NEW: handle missing values before encoding ---
+    X_train, X_val, X_test = impute_features(
+        X_train, X_val, X_test,
+        num_strategy="mean",
+        cat_strategy="most_frequent",
+        verbose=verbose
+    )
+
+    # Encode features
+    X_train, X_val, X_test = preprocess_features(X_train, X_val, X_test,
+                                                 categorical_strategy, verbose=verbose)
+
+    # Encode target
+    encode_labels = True if task_type == "classification" else False
+    y_train, y_val, y_test = preprocess_target(y_train, y_val, y_test,
+                                               encode_labels, verbose=verbose)
+
+    # Scale
+    if scaling:
+        X_train, X_val, X_test = scale_features(X_train, X_val, X_test, scaler_type=scaler_type)
+
+    # Convert to torch if asked
+    if return_as == "tensor":
+        X_train, X_val, X_test = map(lambda arr: torch.tensor(arr, dtype=torch.float32),
+                                     [X_train, X_val, X_test])
+        if task_type == "classification":
+            y_train = torch.tensor(y_train, dtype=torch.long)
+            y_val   = torch.tensor(y_val, dtype=torch.long)
+            y_test  = torch.tensor(y_test, dtype=torch.long)
+        else:
+            y_train = torch.tensor(y_train, dtype=torch.float32)
+            y_val   = torch.tensor(y_val, dtype=torch.float32)
+            y_test  = torch.tensor(y_test, dtype=torch.float32)
+
+    return X_train, y_train, X_val, y_val, X_test, y_test
+
+def convert_to_tensor(X_train, X_val, X_test, y_train, y_val, y_test, return_as='tensor', task_type='classification'):
+    """Converts data to PyTorch tensors, handling regression vs classification."""
+    # Ensure the targets are NumPy arrays
+    if isinstance(y_train, pd.DataFrame):
+        y_train = y_train.to_numpy()
+    if isinstance(y_val, pd.DataFrame):
+        y_val = y_val.to_numpy()
+    if isinstance(y_test, pd.DataFrame):
+        y_test = y_test.to_numpy()
+
+    if return_as == 'tensor':
+        X_train = torch.tensor(X_train, dtype=torch.float32)
+        X_val = torch.tensor(X_val, dtype=torch.float32)
+        X_test = torch.tensor(X_test, dtype=torch.float32)
+        
+        if task_type == 'classification':
+            y_train = torch.tensor(y_train, dtype=torch.long)
+            y_val = torch.tensor(y_val, dtype=torch.long)
+            y_test = torch.tensor(y_test, dtype=torch.long)
+        elif task_type == 'regression':
+            y_train = torch.tensor(y_train, dtype=torch.float32)
+            y_val = torch.tensor(y_val, dtype=torch.float32)
+            y_test = torch.tensor(y_test, dtype=torch.float32)
+        else:
+            raise ValueError(f"Unsupported task_type: {task_type}")
+
+    return X_train, X_val, X_test, y_train, y_val, y_test
+
+
+
+def get_tensor_sizes(X_train, y_train, task_type='classification'):
+    """
+    Determine input and output sizes for PyTorch tensors
+
+    Parameters:
+    -----------
+    X_train : torch.Tensor
+        Input features tensor
+    y_train : torch.Tensor
+        Labels/target tensor
+    task_type : str
+        'classification' or 'regression'
+
+    Returns:
+    --------
+    tuple: (input_size, output_size)
+    """
+    
+    # Input size
+    if len(X_train.shape) == 2:
+        input_size = X_train.shape[1]
+    elif len(X_train.shape) == 1:
+        input_size = 1
+    else:
+        print('Images detected')
+        input_size = X_train.shape[1] * X_train.shape[2] * X_train.shape[3]
+
+    # Output size
+    if task_type == 'classification':
+        output_size = len(torch.unique(y_train))
+    elif task_type == 'regression':
+        output_size = 1 if y_train.dim() == 1 else y_train.shape[1]
     else:
         raise ValueError("task_type must be 'classification' or 'regression'.")
 

@@ -15,111 +15,129 @@ def sigmoid(x, L, k, x0):
 def rational_model(x, a, b):
     return (a * x) / (b + x)
 
+def forecast_accuracy(x_values, accuracies, max_x=None, model_type='sigmoid', degree=2):
+    """
+    Forecast accuracy given progress data with pessimism-aware adjustments.
+    Uses sigmoid fit plus conservative blending to avoid runaway optimism.
+    """
 
-def _prepare_series(x_values: Sequence[float], accuracies: Sequence[float]) -> tuple[np.ndarray, np.ndarray]:
-    """Convert input sequences to float arrays and validate them."""
+    import numpy as np
+    from sklearn.linear_model import LinearRegression
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import PolynomialFeatures
+    from scipy.optimize import curve_fit
+
+    def sigmoid(x, L, k, x0):
+        return L / (1 + np.exp(-k * (x - x0)))
+
+    def rational_model(x, a, b):
+        return (a * x) / (b + x)
+
+    X = np.array(x_values).reshape(-1, 1)
+    y = np.array(accuracies)
+
+    if max_x is None:
+        max_x = np.max(X)
+
+    if len(y) < 2:
+        return float(y[-1]) if len(y) else 0.0
+
+    # --- base forecast ---
     try:
-        X = np.asarray(x_values, dtype=float).reshape(-1, 1)
-        y = np.asarray(accuracies, dtype=float)
-    except (TypeError, ValueError):
-        raise ValueError("Input sequences must be numeric") from None
+        if model_type == 'sigmoid':
+            p0 = [1.0, 1.0, np.median(x_values)]
+            popt, _ = curve_fit(sigmoid, X.flatten(), y, p0=p0,
+                                bounds=([0, 0, 0], [1.0, 10, np.inf]))
+            raw_fcst = sigmoid(max_x, *popt)
+        elif model_type == 'rational':
+            popt, _ = curve_fit(
+                rational_model,
+                X.flatten(), y,
+                bounds=([0.0, 0.01], [1.0, np.inf]),
+                maxfev=10000
+            )
+            raw_fcst = rational_model(max_x, *popt)
+        elif model_type == 'linear':
+            model = LinearRegression().fit(X, y)
+            raw_fcst = model.predict([[max_x]])[0]
+        elif model_type == 'polynomial':
+            model = make_pipeline(PolynomialFeatures(degree), LinearRegression())
+            model.fit(X, y)
+            raw_fcst = model.predict([[max_x]])[0]
+        else:
+            raise ValueError(f"Unsupported model_type: {model_type}")
+    except Exception:
+        raw_fcst = y[-1]
 
-    if X.size == 0 or y.size == 0:
-        raise ValueError("Input sequences cannot be empty")
+    # --- pessimism-aware adjustments ---
+    last_val = y[-1]
 
-    if not (np.isfinite(X).all() and np.isfinite(y).all()):
-        raise ValueError("Input sequences must contain finite values")
+    # 1. Ensemble with last observed
+    alpha = 0.7
+    blended = alpha * raw_fcst + (1 - alpha) * last_val
 
-    return X, y
-
-
-def _forecast_linear(X: np.ndarray, y: np.ndarray, target: float, **_: object) -> float:
-    model = LinearRegression()
-    model.fit(X, y)
-    return float(model.predict([[target]])[0])
-
-
-def _forecast_polynomial(
-    X: np.ndarray,
-    y: np.ndarray,
-    target: float,
-    *,
-    degree: int = 2,
-    **_: object,
-) -> float:
-    model = make_pipeline(PolynomialFeatures(degree), LinearRegression())
-    model.fit(X, y)
-    return float(model.predict([[target]])[0])
-
-
-def _forecast_sigmoid(X: np.ndarray, y: np.ndarray, target: float, **_: object) -> float:
-    p0 = [1.0, 1.0, float(np.median(X))]
-    popt, _ = curve_fit(sigmoid, X.flatten(), y, p0=p0, bounds=([0, 0, 0], [1.0, 10, np.inf]))
-    return float(sigmoid(target, *popt))
-
-
-def _forecast_rational(X: np.ndarray, y: np.ndarray, target: float, **_: object) -> float:
-    popt, _ = curve_fit(
-        rational_model,
-        X.flatten(),
-        y,
-        bounds=([0.0, 0.01], [1.0, np.inf]),
-        maxfev=10000,
-    )
-    return float(rational_model(target, *popt))
-
-
-FORECASTERS: Dict[str, Callable[..., float]] = {
-    "linear": _forecast_linear,
-    "polynomial": _forecast_polynomial,
-    "sigmoid": _forecast_sigmoid,
-    "rational": _forecast_rational,
-}
-
-
-def forecast_accuracy(
-    x_values: Sequence[float],
-    accuracies: Sequence[float],
-    max_x: Optional[float] = None,
-    *,
-    model_type: str = "rational",
-    degree: int = 2,
-) -> Optional[float]:
-    """Forecast the final accuracy given early learning curve samples."""
-
-    try:
-        X, y = _prepare_series(x_values, accuracies)
-    except ValueError:
-        return None
-
-    target = float(max_x) if max_x is not None else float(np.max(X))
-
-    forecaster = FORECASTERS.get(model_type)
-    if forecaster is None:
-        raise ValueError(f"Unsupported model_type: {model_type}")
-
-    try:
-        forecast = forecaster(X, y, target, degree=degree)
-    except RuntimeError:
-        forecast = float(y[-1])
+    # 2. Slope-aware penalty (if curve flattening, downscale optimism)
+    dx = X[-1] - X[-2] + 1e-8
+    slope = (y[-1] - y[-2]) / dx
+    penalty = np.exp(-5 * max(0, slope))  # flat slope → heavier discount
+    forecast = blended * penalty + last_val * (1 - penalty)
 
     return float(np.clip(forecast, 0.0, 1.0))
 
+def forecast_with_ci(x_values, accuracies, max_x=None,
+                     model_type='rational', degree=2, alpha=0.05):
+    """
+    Forecast accuracy with confidence interval.
+    Returns (forecast_mean, lower, upper).
+    """
+    import numpy as np
+    from scipy.optimize import curve_fit
+    from scipy.stats import t
 
-def _early_exit_forecast(val_accs: Sequence[float]) -> float:
-    return float(np.clip(val_accs[-1], 0.0, 1.0))
+    X = np.array(x_values).reshape(-1, 1)
+    y = np.array(accuracies)
+
+    if max_x is None:
+        max_x = np.max(X)
+
+    # pick model
+    if model_type == 'linear':
+        from sklearn.linear_model import LinearRegression
+        model = LinearRegression()
+        model.fit(X, y)
+        forecast = model.predict([[max_x]])[0]
+        # crude std
+        residuals = y - model.predict(X)
+        std_err = np.std(residuals)
+    elif model_type == 'rational':
+        popt, pcov = curve_fit(rational_model, X.flatten(), y,
+                               bounds=([0.0, 0.01], [1.0, np.inf]),
+                               maxfev=10000)
+        forecast = rational_model(max_x, *popt)
+        perr = np.sqrt(np.diag(pcov))
+        std_err = np.max(perr)
+    elif model_type == 'sigmoid':
+        p0 = [1.0, 1.0, np.median(x_values)]
+        popt, pcov = curve_fit(sigmoid, X.flatten(), y, p0=p0,
+                               bounds=([0, 0, 0], [1.0, 10, np.inf]))
+        forecast = sigmoid(max_x, *popt)
+        perr = np.sqrt(np.diag(pcov))
+        std_err = np.max(perr)
+    else:
+        raise ValueError(f"Unsupported model_type: {model_type}")
+
+    # CI from t-distribution
+    dof = max(1, len(y) - 1)
+    tval = t.ppf(1 - alpha/2, dof)
+    lower = forecast - tval * std_err
+    upper = forecast + tval * std_err
+
+    return float(np.clip(forecast, 0, 1)), float(np.clip(lower, 0, 1)), float(np.clip(upper, 0, 1))
 
 
-def forecast_generation(
-    candidates: Mapping[str, Any],
-    dataset_size: int,
-    *,
-    min_val_points: int = 3,
-    growth: float = 1.4,
-    extra_full_passes: int = 3,
-) -> None:
-    """Annotate each candidate with a forecasted validation accuracy."""
-
+def forecast_generation(candidates, dataset_size, 
+                        min_val_points=5, extra_full_passes=10):
+    
     for cand in candidates.values():
         val_times, val_accs = get_val_acc_vs_time(cand)
 
@@ -128,43 +146,26 @@ def forecast_generation(
             continue
 
         if len(val_accs) < min_val_points:
-            cand.metrics["forecasted_val_acc"] = float(min(1.0, val_accs[-1] + 0.15))
+            last_val = val_accs[-1]
+            cand.metrics["forecasted_val_acc"] = float(min(1.0, last_val + 0.05))
+
             continue
 
-        horizon = project_future_time(
-            cand,
-            dataset_size,
-            growth=growth,
-            extra_full_passes=extra_full_passes,
-        )
-
-        if horizon is None:
-            cand.metrics["forecasted_val_acc"] = _early_exit_forecast(val_accs)
+        T_future = project_future_time(cand, dataset_size, extra_full_passes=extra_full_passes)
+        cand.metrics["forecast_horizon_time"] = T_future
+        if T_future is None:
+            cand.metrics["forecasted_val_acc"] = float(val_accs[-1])
             continue
 
-        forecast = forecast_accuracy(
-            val_times,
-            val_accs,
-            max_x=horizon,
-            model_type="rational",
-        )
+        try:
+            fc, lo, hi = forecast_with_ci(val_times, val_accs, max_x=T_future, model_type="rational")
+            cand.metrics["forecasted_val_acc"] = fc 
+            cand.metrics["forecast_CI_low"] = lo
+            cand.metrics["forecast_CI_high"] = hi
 
-        if forecast is None:
-            forecast = _early_exit_forecast(val_accs)
-
-        cand.metrics["forecast_horizon_time"] = horizon
-        cand.metrics["forecasted_val_acc"] = forecast
-
-
-def annotate_probabilities(candidates, goal_metric, temp=0.05):
-    """Assign probability of surpassing the goal using the rational forecast."""
-
-    for cand in candidates.values():
-        fcst = cand.metrics.get("forecasted_val_acc", 0.0)
-
-        margin = fcst - goal_metric
-        prob = 1.0 / (1.0 + np.exp(-margin / (temp + 1e-8)))
-        cand.metrics["p_above_goal"] = float(np.clip(prob, 0.0, 1.0))
+        except Exception:
+            fc = float(val_accs[-1])
+            cand.metrics["forecasted_val_acc"] = float(np.clip(fc, 0.0, 1.0))
 
 
 def get_val_acc_vs_time(candidate) -> tuple[np.ndarray, Sequence[float]]:
@@ -197,31 +198,28 @@ def project_future_time(
 ) -> Optional[float]:
     """Estimate the absolute time horizon used for forecasting."""
 
-    batch_size = int(getattr(candidate, "batch_size", 0) or 0)
-    batch_times = np.asarray(candidate.efforts or [], dtype=float)
-    if batch_times.size == 0 or batch_size <= 0:
+def project_future_time(candidate, dataset_size, extra_full_passes=10):
+    """
+    Returns absolute time horizon (seconds) to forecast at:
+    now + N passes of the cumulative anchor history
+    OR N passes of the full dataset — whichever is larger.
+    """
+    bs = int(candidate.batch_size)
+    batch_times = candidate.efforts or []
+    if not batch_times or bs <= 0:
         return None
 
     bt = float(np.median(batch_times))
+    t_now = candidate.cumulative_times[-1] if candidate.cumulative_times else float(np.sum(batch_times))
 
-    cumulative_times = getattr(candidate, "cumulative_times", None)
-    if cumulative_times:
-        t_now = float(cumulative_times[-1])
-    else:
-        t_now = float(batch_times.sum())
+    # total seen over *all anchors*
+    n_total_seen = sum(candidate.n_instances)
+    t_passed = math.ceil(n_total_seen / bs) * bt
 
-    instance_history = getattr(candidate, "n_instances", None) or []
-    if not instance_history:
-        return None
+    t_dataset = math.ceil(dataset_size / bs) * bt
 
-    n = int(instance_history[-1])
-    t_add = 0.0
-    while n < dataset_size:
-        batches = math.ceil(n / batch_size)
-        t_add += batches * bt
-        n = min(int(n * growth), dataset_size)
+    t_future = extra_full_passes * max(t_passed, t_dataset)
 
-    t_full = math.ceil(dataset_size / batch_size) * bt
-    t_add += extra_full_passes * t_full
-
-    return t_now + t_add
+    # print(f"Candidate {candidate.id}: n_total_seen={n_total_seen}, last_seen={candidate.n_instances[-1]}, bs={bs}, bt={bt:.2f}, "
+    #       f"t_now={t_now:.2f}, t_passed={t_passed:.2f}, t_dataset={t_dataset:.2f}, t_future={t_future:.2f}")
+    return t_now + t_future

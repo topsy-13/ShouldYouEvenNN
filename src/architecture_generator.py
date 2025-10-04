@@ -260,21 +260,16 @@ class DynamicNN(nn.Module):  # MLP
 
 
     # TODO: recheck this behavior with new batch logging    
-    def es_train(self, candidate, train_loader, val_loader,
-             es_patience=50, verbose=False,
-             task_type='classification', return_lc=False):
+    def horizon_train(self, candidate, train_loader, val_loader,
+                      task_type='classification', return_lc=False):
         """
         Train until the forecast horizon (seconds) is reached.
-        Early stopping still applies. Final validation is forced at horizon.
+        Validation runs after every batch. No early stopping.
         """
 
         horizon = candidate.metrics.get("forecast_horizon_time", None)
         if horizon is None:
             raise ValueError("Forecast horizon not found in candidate.metrics")
-
-        best_metric = -float('inf')
-        epochs_without_improvement = 0
-        best_model_state = None
 
         if return_lc:
             learning_curve = {
@@ -283,8 +278,8 @@ class DynamicNN(nn.Module):  # MLP
             }
 
         total_time = 0.0
-        epoch = 0
         keep_training = True
+        epoch = 0
 
         while keep_training and total_time < horizon:
             epoch += 1
@@ -316,54 +311,38 @@ class DynamicNN(nn.Module):  # MLP
                 candidate.log_metric("train", "loss", loss.item())
                 candidate.log_metric("train", "acc", train_acc)
 
-                # break immediately if horizon hit mid-epoch
+                # ---- validation immediately after each batch ----
+                self.eval()
+                correct, total, val_loss_sum = 0, 0, 0.0
+                with torch.no_grad():
+                    for v_features, v_labels in val_loader:
+                        v_features, v_labels = v_features.to(self.device), v_labels.to(self.device)
+                        if v_features.dim() > 2:
+                            v_features = v_features.view(v_features.size(0), -1)
+                        v_outputs = self(v_features)
+                        v_loss = self.criterion(v_outputs, v_labels)
+                        val_loss_sum += v_loss.item() * v_features.size(0)
+                        if task_type == 'classification':
+                            _, v_pred = torch.max(v_outputs, 1)
+                            correct += (v_pred == v_labels).sum().item()
+                        total += v_labels.size(0)
+
+                val_loss = val_loss_sum / total
+                val_acc = (correct / total) if task_type == 'classification' else None
+                candidate.log_metric("val", "loss", val_loss)
+                candidate.log_metric("val", "acc", val_acc)
+
+                if return_lc:
+                    learning_curve['es_train_losses'].append(loss.item())
+                    learning_curve['es_val_losses'].append(val_loss)
+                    if task_type == 'classification':
+                        learning_curve['es_train_accs'].append(train_acc)
+                        learning_curve['es_val_accs'].append(val_acc)
+
+                # stop if horizon exceeded mid-epoch
                 if total_time >= horizon:
                     keep_training = False
                     break
-
-            # --- validation at end of epoch OR if horizon was just reached ---
-            self.eval()
-            correct, total, val_loss_sum = 0, 0, 0.0
-            with torch.no_grad():
-                for v_features, v_labels in val_loader:
-                    v_features, v_labels = v_features.to(self.device), v_labels.to(self.device)
-                    if v_features.dim() > 2:
-                        v_features = v_features.view(v_features.size(0), -1)
-                    v_outputs = self(v_features)
-                    v_loss = self.criterion(v_outputs, v_labels)
-                    val_loss_sum += v_loss.item() * v_features.size(0)
-                    if task_type == 'classification':
-                        _, v_pred = torch.max(v_outputs, 1)
-                        correct += (v_pred == v_labels).sum().item()
-                    total += v_labels.size(0)
-
-            val_loss = val_loss_sum / total
-            val_acc = (correct / total) if task_type == 'classification' else None
-            candidate.log_metric("val", "loss", val_loss)
-            candidate.log_metric("val", "acc", val_acc)
-
-            if return_lc:
-                learning_curve['es_train_losses'].append(loss.item())
-                learning_curve['es_val_losses'].append(val_loss)
-                if task_type == 'classification':
-                    learning_curve['es_train_accs'].append(train_acc)
-                    learning_curve['es_val_accs'].append(val_acc)
-
-            # early stopping check
-            current_metric = val_acc if task_type == 'classification' else -val_loss
-            if current_metric > best_metric:
-                best_metric = current_metric
-                best_model_state = copy.deepcopy(self.state_dict())
-                epochs_without_improvement = 0
-            else:
-                epochs_without_improvement += 1
-                if epochs_without_improvement >= es_patience:
-                    if verbose:
-                        print(f"[ES] Patience exhausted at epoch {epoch}, t={total_time:.2f}s")
-                    keep_training = False
-
-        if best_model_state is not None:
-            self.load_state_dict(best_model_state)
 
         if return_lc:
             candidate.metrics["learning_curve_es"] = learning_curve
@@ -375,6 +354,7 @@ class DynamicNN(nn.Module):  # MLP
             candidate.get_metric("val", "acc", last_only=True),
             learning_curve if return_lc else None
         )
+
 
 
     def evaluate(self, val_loader):

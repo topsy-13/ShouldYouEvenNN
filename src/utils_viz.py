@@ -5,7 +5,8 @@ from __future__ import annotations
 from typing import Mapping, Sequence
 
 import matplotlib.pyplot as plt
-import numpy as np
+import seaborn as sns
+
 import pandas as pd
 
 __all__ = [
@@ -51,7 +52,7 @@ def plot_generation_dynamics(generation_logs: Sequence[Mapping], *, title: str =
 
     plt.title(title)
     plt.tight_layout()
-    plt.show()
+    # plt.show()
 
 
 def plot_forecast_vs_fidelity(fidelity_report: Mapping[str, pd.DataFrame], *, title: str = "Forecast vs Fidelity") -> None:
@@ -68,13 +69,16 @@ def plot_forecast_vs_fidelity(fidelity_report: Mapping[str, pd.DataFrame], *, ti
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
     axes[0].scatter(fcst, actual, c="blue", alpha=0.7)
-    bounds = [min(fcst.min(), actual.min()), max(fcst.max(), actual.max())]
-    axes[0].plot(bounds, bounds, "r--", label="Perfect forecast")
+    min_val = min(fcst.min(), actual.min())
+    max_val = max(fcst.max(), actual.max())
+    axes[0].plot([0, 1], [0, 1], "r--", label="Perfect forecast")
     axes[0].set_xlabel("Forecasted val_acc")
     axes[0].set_ylabel("Actual ES val_acc")
     axes[0].set_title("Forecast vs Actual")
     axes[0].legend()
     axes[0].grid(alpha=0.3)
+    axes[0].set_xlim(0.2, 1.0)
+    axes[0].set_ylim(0.2, 1.0)
 
     axes[1].hist(deltas, bins=15, color="purple", alpha=0.7)
     axes[1].axvline(0, color="black", linestyle="--")
@@ -84,11 +88,16 @@ def plot_forecast_vs_fidelity(fidelity_report: Mapping[str, pd.DataFrame], *, ti
 
     plt.suptitle(title)
     plt.tight_layout()
-    plt.show()
+    # plt.show()
 
 
-def plot_es_learning_curve_from_ledger(row: Mapping, *, title: str | None = None) -> None:
-    """Plot the ES learning curve stored in a ledger row."""
+def plot_es_learning_curve_from_ledger(row, title=None):
+    """
+    Plot ES learning curve from a fidelity_ledger row with time axis scaled to the forecast horizon,
+    including forecasted confidence interval at the final step.
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
 
     curve = row.get("learning_curve")
     if curve is None:
@@ -98,9 +107,10 @@ def plot_es_learning_curve_from_ledger(row: Mapping, *, title: str | None = None
     if not val_accs:
         raise ValueError("Learning curve has no validation accuracy points.")
 
-    n_points = len(val_accs)
-    forecast_acc = row.get("forecasted_val_acc")
-    forecast_time = row.get("forecast_horizon_time")
+    # forecast info
+    fcst_acc = row.get("forecasted_val_acc", None)
+    fcst_time = row.get("forecast_horizon_time", None)
+    ci_lower, ci_upper = row.get("forecasted_CI_low", None), row.get("forecasted_CI_high", None)
 
     if forecast_time is not None:
         times = np.linspace(0, forecast_time, n_points)
@@ -109,15 +119,35 @@ def plot_es_learning_curve_from_ledger(row: Mapping, *, title: str | None = None
 
     plt.figure(figsize=(8, 5))
     plt.plot(times, val_accs, "o-", color="blue", label="ES val_acc")
+    plt.vlines(row.get('forecasted_at'), color='black', linestyle='--', ymin=0, ymax=1, label='Forecast made at')
+    # forecast overlay
+    if fcst_acc is not None and fcst_time is not None:
+        # Horizon lines
+        plt.axvline(fcst_time, color="red", linestyle="--", label="Forecast horizon")
+        plt.axhline(fcst_acc, color="red", linestyle="--", label=f"Forecasted acc={fcst_acc:.3f}")
 
-    if forecast_acc is not None and forecast_time is not None:
-        plt.axvline(forecast_time, color="red", linestyle="--", label="Forecast horizon")
-        plt.axhline(forecast_acc, color="red", linestyle="--", label=f"Forecasted acc={forecast_acc:.3f}")
+        # Add CI whisker + shading if available
+        if ci_lower is not None and ci_upper is not None:
+            # Vertical whisker
+            plt.vlines(fcst_time, ci_lower, ci_upper, color="black", lw=1.5)
+            plt.hlines([ci_lower, ci_upper],
+                       fcst_time - 0.02 * fcst_time,
+                       fcst_time + 0.02 * fcst_time,
+                       color="black", lw=1.5)
+
+            # Subtle shaded box around the CI
+            plt.fill_betweenx([ci_lower, ci_upper],
+                              fcst_time - 0.03 * fcst_time,
+                              fcst_time + 0.03 * fcst_time,
+                              color="gray", alpha=0.2)
 
     plt.xlabel("Cumulative Time (s)")
     plt.ylabel("Validation Accuracy")
     plt.title(title or f"Candidate {row.get('id', '?')} ES vs Forecast")
     plt.legend()
     plt.grid(alpha=0.3)
-    plt.show()
-
+    plt.xlim(left=0)
+    plt.ylim(0, 1.0)
+    # Despine for aesthetics
+    sns.despine()
+    plt.tight_layout()

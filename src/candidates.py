@@ -115,16 +115,23 @@ class Candidate:
                     if isinstance(sub_value, list) and sub_value:
                         flat_metrics[f"last_{key}_{sub_key}"] = sub_value[-1]
             else:
-                flat_metrics[key] = value
+                flat_metrics[k] = v
+        
+        for key in ["train_acc", "train_loss", "val_acc", "val_loss"]:
+            values = flat_metrics.get(key, [])
+            flat_metrics[f"last_{key}"] = values[-1] if values else None
 
-        if self.efforts:
-            flat_metrics["total_batch_time"] = float(sum(self.efforts))
-            flat_metrics["avg_batch_time"] = float(fmean(self.efforts))
+        # --- NEW: summarize timing ---
+        epoch_times = self.metrics.get("epoch_time", [])
+        if isinstance(epoch_times, list) and len(epoch_times) > 0:
+            flat_metrics["total_epoch_time"] = float(sum(epoch_times))
+            flat_metrics["avg_epoch_time"] = float(np.mean(epoch_times))
         else:
-            flat_metrics["total_batch_time"] = 0.0
-            flat_metrics["avg_batch_time"] = 0.0
+            flat_metrics["total_epoch_time"] = 0.0
+            flat_metrics["avg_epoch_time"] = 0.0
 
-        return {
+        # Combine everything
+        candidate_dict = {
             "id": self.id,
             "batch_size": self.batch_size,
             "n_instances": self.n_instances,

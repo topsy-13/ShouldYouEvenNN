@@ -1,0 +1,16 @@
+{
+    "exp_id": "41145_13",
+    "data_id": 41145,
+    "seed": 13,
+    "n_rows": 4665,
+    "n_features": 308,
+    "hgb_accuracy": 0.7686375321336761,
+    "hgb_training_time_sec": 1.2537305355072021,
+    "mlp_training_time": 1.5773417949676514,
+    "mlp_train_acc": 1.0,
+    "mlp_train_loss": 0.0025372017051871055,
+    "mlp_test_acc": 0.6915167095115681,
+    "naml_time_taken": 121.51585650444031,
+    "naml_best_validation_metric": 0.7596,
+    "naml_test_accuracy": 0.7686375321336761
+}
