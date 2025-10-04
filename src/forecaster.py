@@ -1,11 +1,16 @@
+import math
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence
+
 import numpy as np
+from scipy.optimize import curve_fit
 from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import PolynomialFeatures
-from scipy.optimize import curve_fit
+
 
 def sigmoid(x, L, k, x0):
     return L / (1 + np.exp(-k * (x - x0)))
+
 
 def rational_model(x, a, b):
     return (a * x) / (b + x)
@@ -163,28 +168,35 @@ def forecast_generation(candidates, dataset_size,
             cand.metrics["forecasted_val_acc"] = float(np.clip(fc, 0.0, 1.0))
 
 
-import numpy as np
+def get_val_acc_vs_time(candidate) -> tuple[np.ndarray, Sequence[float]]:
+    """Return validation accuracies aligned with their timestamps."""
 
-def get_val_acc_vs_time(candidate):
-    # Prefer the explicit cumulative list you added
-    times = np.array(getattr(candidate, "cumulative_times", []), dtype=float)
-    if times.size == 0:
-        # Fallback to cumulative sum of efforts
-        efforts = np.array(candidate.efforts or [], dtype=float)
+    cumulative_times = getattr(candidate, "cumulative_times", None)
+    if cumulative_times:
+        times = np.asarray(cumulative_times, dtype=float)
+    else:
+        efforts = np.asarray(candidate.efforts or [], dtype=float)
         times = np.cumsum(efforts) if efforts.size else np.array([])
 
     if times.size == 0:
         return [], []
 
-    val_accs = candidate.get_metric("val", "acc")
+    val_accs = candidate.get_metric("val", "acc") or []
     if not val_accs:
         return [], []
 
     k = min(len(val_accs), times.size)
     return times[:k], val_accs[:k]
 
-import math
 
+def project_future_time(
+    candidate,
+    dataset_size: int,
+    *,
+    growth: float = 1.4,
+    extra_full_passes: int = 3,
+) -> Optional[float]:
+    """Estimate the absolute time horizon used for forecasting."""
 
 def project_future_time(candidate, dataset_size, extra_full_passes=10):
     """

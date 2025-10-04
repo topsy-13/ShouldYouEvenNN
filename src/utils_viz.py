@@ -1,35 +1,52 @@
+"""Plotting helpers used to inspect population dynamics."""
+
+from __future__ import annotations
+
+from typing import Mapping, Sequence
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 import pandas as pd
 
-def plot_generation_dynamics(generation_logs, title="Population dynamics"):
+__all__ = [
+    "plot_generation_dynamics",
+    "plot_forecast_vs_fidelity",
+    "plot_es_learning_curve_from_ledger",
+]
+
+
+def plot_generation_dynamics(generation_logs: Sequence[Mapping], *, title: str = "Population dynamics") -> None:
+    """Plot how the population evolves across generations."""
+
     if not generation_logs:
         print("No logs to plot.")
         return
 
     df = pd.DataFrame(generation_logs)
-    gens = df["gen"]
+    generations = df["gen"]
 
     fig, ax1 = plt.subplots(figsize=(10, 6))
 
-    # Population dynamics
-    ax1.plot(gens, df["survivors"], marker="o", label="Survivors (post hybrid drop)")
-    ax1.bar(gens, df["convex_lb_discarded"], alpha=0.4, label="Convex LB discarded")
-    ax1.bar(gens, df["hybrid_dropped"], bottom=df["convex_lb_discarded"],
-            alpha=0.4, label="Hybrid dropped")
-    ax1.plot(gens, df["spawned"], marker="x", linestyle="--", color="green", label="Spawned")
-    ax1.plot(gens, df["final_population"], marker="s", color="red", label="Final population")
+    ax1.plot(generations, df["survivors"], marker="o", label="Survivors")
+    ax1.bar(generations, df["convex_lb_discarded"], alpha=0.4, label="Convex LB discarded")
+    ax1.bar(
+        generations,
+        df["hybrid_dropped"],
+        bottom=df["convex_lb_discarded"],
+        alpha=0.4,
+        label="Hybrid dropped",
+    )
+    ax1.plot(generations, df["spawned"], marker="x", linestyle="--", color="green", label="Spawned")
+    ax1.plot(generations, df["final_population"], marker="s", color="red", label="Final population")
 
     ax1.set_xlabel("Generation")
     ax1.set_ylabel("Population counts")
     ax1.legend(loc="upper left")
     ax1.grid(True, alpha=0.3)
 
-    # Compute dynamics on right axis
     ax2 = ax1.twinx()
-    ax2.plot(gens, df["cumulative_compute"], color="purple", marker="d",
-             label="Cumulative compute (s)")
+    ax2.plot(generations, df["cumulative_compute"], color="purple", marker="d", label="Cumulative compute (s)")
     ax2.set_ylabel("Cumulative compute (seconds)")
     ax2.legend(loc="upper right")
 
@@ -38,14 +55,12 @@ def plot_generation_dynamics(generation_logs, title="Population dynamics"):
     # plt.show()
 
 
+def plot_forecast_vs_fidelity(fidelity_report: Mapping[str, pd.DataFrame], *, title: str = "Forecast vs Fidelity") -> None:
+    """Visualise the accuracy forecast compared to the ES evaluation."""
 
-def plot_forecast_vs_fidelity(fidelity_report, title="Forecast vs Fidelity"):
-    """
-    Visualize forecasted vs. ES-validated accuracies.
-
-    fidelity_report: dict returned by Population.compare_forecast_vs_fidelity()
-    """
-    details = fidelity_report["details"]
+    details = fidelity_report.get("details")
+    if details is None or not isinstance(details, pd.DataFrame):
+        raise ValueError("fidelity_report must contain a 'details' DataFrame.")
 
     fcst = details["forecasted_val_acc"].astype(float)
     actual = details["fidelity_val_acc"].astype(float)
@@ -53,7 +68,6 @@ def plot_forecast_vs_fidelity(fidelity_report, title="Forecast vs Fidelity"):
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
-    # --- Scatter: forecast vs actual ---
     axes[0].scatter(fcst, actual, c="blue", alpha=0.7)
     min_val = min(fcst.min(), actual.min())
     max_val = max(fcst.max(), actual.max())
@@ -66,7 +80,6 @@ def plot_forecast_vs_fidelity(fidelity_report, title="Forecast vs Fidelity"):
     axes[0].set_xlim(0.2, 1.0)
     axes[0].set_ylim(0.2, 1.0)
 
-    # --- Histogram: forecast error ---
     axes[1].hist(deltas, bins=15, color="purple", alpha=0.7)
     axes[1].axvline(0, color="black", linestyle="--")
     axes[1].set_xlabel("Delta (Actual - Forecast)")
@@ -86,14 +99,12 @@ def plot_es_learning_curve_from_ledger(row, title=None):
     import matplotlib.pyplot as plt
     import numpy as np
 
-    lc = row["learning_curve"]
-    if lc is None:
+    curve = row.get("learning_curve")
+    if curve is None:
         raise ValueError("No learning curve stored for this candidate row.")
 
-    val_accs = lc["es_val_accs"]
-    n_points = len(val_accs)
-
-    if n_points == 0:
+    val_accs = curve.get("es_val_accs")
+    if not val_accs:
         raise ValueError("Learning curve has no validation accuracy points.")
 
     # forecast info
@@ -101,15 +112,12 @@ def plot_es_learning_curve_from_ledger(row, title=None):
     fcst_time = row.get("forecast_horizon_time", None)
     ci_lower, ci_upper = row.get("forecasted_CI_low", None), row.get("forecasted_CI_high", None)
 
-    # build x-axis: evenly spread validation checks over [0, forecast_horizon_time]
-    if fcst_time is not None:
-        times = np.linspace(0, fcst_time, n_points)
+    if forecast_time is not None:
+        times = np.linspace(0, forecast_time, n_points)
     else:
         times = np.arange(n_points)
 
     plt.figure(figsize=(8, 5))
-
-    # ES curve
     plt.plot(times, val_accs, "o-", color="blue", label="ES val_acc")
     plt.vlines(row.get('forecasted_at'), color='black', linestyle='--', ymin=0, ymax=1, label='Forecast made at')
     # forecast overlay
@@ -135,7 +143,7 @@ def plot_es_learning_curve_from_ledger(row, title=None):
 
     plt.xlabel("Cumulative Time (s)")
     plt.ylabel("Validation Accuracy")
-    plt.title(title or f"Candidate {row['id']} ES vs Forecast")
+    plt.title(title or f"Candidate {row.get('id', '?')} ES vs Forecast")
     plt.legend()
     plt.grid(alpha=0.3)
     plt.xlim(left=0)

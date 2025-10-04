@@ -1,47 +1,78 @@
-# import numpy as np
+"""Scoring utilities to prioritise promising candidates."""
 
-def check_higher_than_baseline(candidates, baseline_metric):
-    active_individuals = candidates.keys()
-    for i in active_individuals:
-        candidate = candidates[i]
-        last_fcst_acc = candidate.get_metric("forecasted_val_acc") or 0.0
-        
-        candidate.log_metric("fcst_greater_than_baseline", value=last_fcst_acc >= baseline_metric)
+from __future__ import annotations
+
+from typing import Mapping
 
 import numpy as np
 
-EPS = 1e-8
+EPSILON = 1e-8
 
-def sigmoid_prob(fcst, slope, var, goal, temp=0.05,
-                 slope_penalty_scale=5.0, var_penalty_scale=1.0):
-    """
-    Convert margin into probability with slope/variance penalties.
-    """
-    margin = fcst - goal
+__all__ = [
+    "check_higher_than_baseline",
+    "sigmoid_prob",
+    "mc_prob",
+    "compute_p_above_goal",
+    "compute_and_log_p_above_goal",
+    "score_individuals",
+    "convex_lb_discard",
+]
+
+
+def check_higher_than_baseline(candidates: Mapping, baseline_metric: float) -> None:
+    """Annotate whether each candidate beats the provided baseline."""
+
+    for candidate in candidates.values():
+        forecast = candidate.get_metric("forecasted_val_acc") or 0.0
+        candidate.log_metric("fcst_greater_than_baseline", value=forecast >= baseline_metric)
+
+
+def sigmoid_prob(
+    forecast: float,
+    slope: float,
+    variance: float,
+    goal: float,
+    *,
+    temp: float = 0.05,
+    slope_penalty_scale: float = 5.0,
+    variance_penalty_scale: float = 1.0,
+) -> float:
+    """Convert the margin to a probability using a penalised sigmoid."""
+
+    margin = forecast - goal
     slope_factor = np.exp(-max(0.0, slope) * slope_penalty_scale)
-    penalty = slope_penalty_scale * 0.1 * slope_factor + var_penalty_scale * var
-    adjusted_margin = margin - penalty
-    prob = 1.0 / (1.0 + np.exp(-adjusted_margin / (temp + EPS)))
+    penalty = slope_penalty_scale * 0.1 * slope_factor + variance_penalty_scale * variance
+    adjusted = margin - penalty
+    prob = 1.0 / (1.0 + np.exp(-adjusted / (temp + EPSILON)))
     return float(np.clip(prob, 0.0, 1.0))
 
 
-def mc_prob(fcst, var, goal, n_samples=500, min_std=1e-3):
-    """
-    Monte Carlo probability: sample from Normal(fcst, var).
-    """
-    std = max(min_std, np.sqrt(max(var, 0.0)))
-    samples = np.random.normal(loc=fcst, scale=std, size=n_samples)
+def mc_prob(
+    forecast: float,
+    variance: float,
+    goal: float,
+    *,
+    n_samples: int = 500,
+    min_std: float = 1e-3,
+) -> float:
+    """Estimate the probability via Monte Carlo sampling."""
+
+    std = max(min_std, np.sqrt(max(variance, 0.0)))
+    samples = np.random.normal(loc=forecast, scale=std, size=n_samples)
     return float(np.mean(samples > goal))
 
 
-def compute_p_above_goal(candidate, goal,
-                         alpha=0.7, temp=0.05,
-                         mc_samples=500):
-    """
-    Compute probability that candidate beats the goal.
-    - alpha: weight for Monte Carlo vs sigmoid.
-    """
-    fcst = candidate.metrics.get("forecasted_val_acc", 0.0)
+def compute_p_above_goal(
+    candidate,
+    goal: float,
+    *,
+    alpha: float = 0.7,
+    temp: float = 0.05,
+    mc_samples: int = 500,
+) -> float:
+    """Blend sigmoid and Monte Carlo probabilities for robustness."""
+
+    forecast = candidate.metrics.get("forecasted_val_acc", 0.0)
     slope = candidate.metrics.get("slope_val_acc", 0.0)
     var = candidate.metrics.get("var_val_acc", 0.02)
 
@@ -91,12 +122,8 @@ def score_individuals(candidates):
     Probabilities are normalized to sum = 1.
     """
     keys = list(candidates.keys())
-    probs = np.array(
-        [candidates[k].metrics.get("p_above_goal", 0.0) for k in keys],
-        dtype=float
-    )
+    probs = np.array([candidates[key].metrics.get("p_above_goal", 0.0) for key in keys], dtype=float)
 
-    # Avoid all-zero case
     if probs.sum() <= 0:
         scores = np.ones_like(probs) / len(probs)
     else:
