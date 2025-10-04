@@ -2,15 +2,15 @@
     "exp_id": "4538_13",
     "data_id": 4538,
     "seed": 13,
-    "n_rows": 9873,
+    "n_rows": 7898,
     "n_features": 32,
     "hgb_accuracy": 0.6632911392405063,
-    "hgb_training_time_sec": 0.8102250099182129,
-    "mlp_training_time": 2.5438735485076904,
+    "hgb_training_time_sec": 0.7747666835784912,
+    "mlp_training_time": 2.614635705947876,
     "mlp_train_acc": 0.7037224613826285,
     "mlp_train_loss": 0.8079344093044901,
     "mlp_test_acc": 0.5584810126582278,
-    "naml_time_taken": 57.69661784172058,
-    "naml_best_validation_metric": 0.6656,
-    "naml_test_accuracy": 0.6972151898734177
+    "naml_time_taken": 65.5130398273468,
+    "naml_best_validation_metric": 0.6709,
+    "naml_test_accuracy": 0.6911392405063291
 }
