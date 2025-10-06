@@ -1,11 +1,9 @@
 import numpy as np
 
-from __future__ import annotations
 
 import gc
 import json
 import time
-from typing import Any, Dict, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -24,6 +22,7 @@ from scoring import (
     score_individuals,
 )
 from utils import init_global_seed, make_repro_context
+import data_preprocessing as dp
 
 
 import pandas as pd
@@ -37,8 +36,8 @@ class Population:
         self,
         search_space,
         size,
-        starting_instances: Union[int, float] = 100,
-        seed: Optional[int] = None,
+        starting_instances=0.1,
+        seed= None,
         task_type: str = "classification",
     ) -> None:
         self.seed = int(seed if seed is not None else np.random.default_rng().integers(0, 1_000_000))
@@ -76,9 +75,9 @@ class Population:
     
 
     def train_generation(self, X_train, y_train, 
-                     training_mode='oe', 
-                     X_val=None, y_val=None, time_budget=None,
-                     **kwargs):
+                    training_mode='oe', 
+                    X_val=None, y_val=None, time_budget=None,
+                    **kwargs):
         """Train all candidates."""
 
 
@@ -149,6 +148,11 @@ class Population:
                         model.train()
                         
 
+            # store epoch timing as list
+            if "epoch_time" not in candidate.metrics:
+                candidate.metrics["epoch_time"] = []
+            candidate.metrics["epoch_time"].append(epoch_time_acc)
+
             return epoch_time_acc
 
         """Train all candidates in the population."""
@@ -167,24 +171,18 @@ class Population:
 
             # Use the shared RNG to choose indices
             X_sampled, y_sampled = sample_data(
-                X_train,
-                y_train,
-                n_instances,
+                X_train, y_train, n_instances,
                 mode="absolute",
                 seed=None,                   
                 task_type=self.task_type,
-                rng=self.repro.numpy_generator,
+                rng=self.repro.np_rng         # NEW
             )
 
-            X_sampled = _ensure_tensor(X_sampled, reference=feature_reference)
-            y_sampled = _ensure_tensor(y_sampled, reference=target_reference)
-
             train_loader = dp.create_dataloader(
-                X=X_sampled,
-                y=y_sampled,
+                X=X_sampled, y=y_sampled,
                 batch_size=batch_size,
-                generator=self.repro.torch_generator,
-                worker_init_fn=self.repro.worker_init_fn,
+                generator=self.repro.torch_gen,
+                seed_worker=self.repro.seed_worker
             )
 
             if training_mode == 'oe':
@@ -192,12 +190,11 @@ class Population:
                     "Validation data must be provided for one-epoch training."
 
                 val_loader = dp.create_dataloader(
-                    X=val_features,
-                    y=val_targets,
-                    batch_size=batch_size,
-                    generator=self.repro.torch_generator,
-                    worker_init_fn=self.repro.worker_init_fn,
-                )
+                        X=X_val, y=y_val,
+                        batch_size=batch_size,
+                        generator=self.repro.torch_gen,
+                        seed_worker=self.repro.seed_worker
+                    )
 
                 epoch_time = train_one_candidate(
                     candidate, train_loader, val_loader,
@@ -205,8 +202,12 @@ class Population:
                 )
 
 
-                candidate.metrics.setdefault("epoch_time", []).append(epoch_time)
+                # log epoch time
+                if "epoch_time" not in candidate.metrics:
+                    candidate.metrics["epoch_time"] = []
+                candidate.metrics["epoch_time"].append(epoch_time)
 
+                # update budget + epoch counter
                 candidate.next_anchor(growth=1.4, max_cap=len(X_train))
                 candidate.epochs_trained += 1
 
@@ -378,61 +379,157 @@ class Population:
 
 
     def run_generation(self,
-                   X_train, y_train, X_val, y_val,
-                   baseline_metric,
-                   base_drop=0.2,
-                   max_drop=0.5,
-                   track_all_models=False,
-                   time_budget=None):
+                    X_train, y_train, X_val, y_val,
+                    baseline_metric,
+                    base_drop=0.2,
+                    max_drop=0.5,
+                    track_all_models=False,
+                    time_budget=None):
+        """
+        Run a single evolutionary generation:
+        - Spawns new candidates (random + bred)
+        - Trains each candidate (OE)
+        - Forecasts validation accuracy
+        - Scores and prunes
+        - Logs rich generation-level telemetry
+        """
 
+        import numpy as np
         log = {"gen": self.generations_completed + 1}
+        gen_start = time.time()
 
-        # Phase 0: Exploration first
+        # === PHASE 0: Spawn ===
         before_spawn = len(self.candidates)
         self.spawn_new_candidates(self.search_space)
         after_spawn = len(self.candidates)
         log["spawned"] = after_spawn - before_spawn
+        log["population_before_train"] = before_spawn
+        log["population_after_spawn"] = after_spawn
 
-        # --- Phase 1: Train ---
+        # === PHASE 1: Train ===
         before_train = len(self.candidates)
         self.train_generation(X_train, y_train,
                             training_mode="oe",
-                            X_val=X_val, y_val=y_val, 
+                            X_val=X_val, y_val=y_val,
                             time_budget=time_budget)
         log["trained"] = before_train
 
-        # --- Compute estimate (wall-time) ---
+        # --- compute total training time in this generation ---
         total_epoch_times = []
         for cand in self.candidates.values():
             if "epoch_time" in cand.metrics:
                 total_epoch_times.extend(cand.metrics["epoch_time"])
-        log["compute_this_gen"] = float(sum(total_epoch_times)) if total_epoch_times else 0.0
-        # --- Phase 2: Forecast + scoring ---
-        forecast_generation(self.candidates, dataset_size=len(X_train),
-                            min_val_points=5, extra_full_passes=5)
+        compute_time = float(sum(total_epoch_times)) if total_epoch_times else 0.0
+        log["compute_this_gen"] = compute_time
+
+        # === PHASE 2: Forecast & Scoring ===
+        forecast_generation(self.candidates,
+                            dataset_size=len(X_train),
+                            min_val_points=5,
+                            extra_full_passes=5)
         check_higher_than_baseline(self.candidates, baseline_metric)
+
         dynamic_goal = max(
             baseline_metric or 0.0,
-            max((c.get_metric("val", "acc", last_only=True) or 0.0) for c in self.candidates.values()),
-            max((c.metrics.get("forecasted_val_acc", 0.0) or 0.0) for c in self.candidates.values())
+            max((c.get_metric("val", "acc", last_only=True) or 0.0)
+                for c in self.candidates.values()),
+            max((c.metrics.get("forecasted_val_acc", 0.0) or 0.0)
+                for c in self.candidates.values())
         )
+
         compute_and_log_p_above_goal(self.candidates, goal_metric=dynamic_goal)
         score_individuals(self.candidates)
 
-        # --- Phase 3: Unified pruning (includes convex LB + hybrid drop) ---
+        # === PHASE 3: Pruning ===
         survivors_before = len(self.candidates)
-        self.prune_candidates(baseline_metric=dynamic_goal,
-                            base_drop=base_drop,
-                            max_drop=max_drop,
-                            elite_fraction=0.1,
-                            min_survivors=5)
+        self.prune_candidates(
+            baseline_metric=dynamic_goal,
+            base_drop=base_drop,
+            max_drop=max_drop,
+            elite_fraction=0.1,
+            min_survivors=5
+        )
         self.drop_worst_individuals()
         survivors_after = len(self.candidates)
 
         log["hybrid_dropped"] = survivors_before - survivors_after
         log["survivors"] = survivors_after
 
-        # --- Ledger update ---
+        # === PHASE 4: Extended Statistics ===
+        # Gather population-level telemetry
+        val_accs = [c.get_metric("val", "acc", last_only=True) or 0.0 for c in self.candidates.values()]
+        fcsts = [c.metrics.get("forecasted_val_acc", 0.0) for c in self.candidates.values()]
+        p_above = [c.metrics.get("p_above_goal", 0.0) for c in self.candidates.values()]
+        ci_highs = [c.metrics.get("forecast_CI_high", 0.0) for c in self.candidates.values()]
+        ci_lows = [c.metrics.get("forecast_CI_low", 0.0) for c in self.candidates.values()]
+        efforts = [sum(c.efforts) for c in self.candidates.values() if c.efforts]
+
+        def _safe_stat(arr, fn):
+            if arr is None:
+                return None
+            # works for both lists and numpy arrays
+            if isinstance(arr, (list, tuple)):
+                if len(arr) == 0:
+                    return None
+            elif hasattr(arr, "size"):
+                if arr.size == 0:
+                    return None
+            try:
+                return float(fn(arr))
+            except Exception:
+                return None
+
+
+        log.update({
+            # performance stats
+            "val_acc_mean": _safe_stat(val_accs, np.mean),
+            "val_acc_std": _safe_stat(val_accs, np.std),
+            "val_acc_max": _safe_stat(val_accs, np.max),
+            "val_acc_min": _safe_stat(val_accs, np.min),
+
+            # forecast stats
+            "fcst_mean": _safe_stat(fcsts, np.mean),
+            "fcst_std": _safe_stat(fcsts, np.std),
+            "fcst_max": _safe_stat(fcsts, np.max),
+            "fcst_min": _safe_stat(fcsts, np.min),
+
+            # probability stats
+            "p_above_mean": _safe_stat(p_above, np.mean),
+            "p_above_std": _safe_stat(p_above, np.std),
+            "p_above_max": _safe_stat(p_above, np.max),
+            "p_above_min": _safe_stat(p_above, np.min),
+
+            # CI width
+            "ci_high_mean": _safe_stat(ci_highs, np.mean),
+            "ci_low_mean": _safe_stat(ci_lows, np.mean),
+            "ci_width_mean": _safe_stat(np.array(ci_highs) - np.array(ci_lows), np.mean)
+                            if ci_highs and ci_lows else None,
+
+            # effort summary
+            "effort_total": _safe_stat(efforts, np.sum),
+            "effort_mean": _safe_stat(efforts, np.mean),
+            "effort_std": _safe_stat(efforts, np.std),
+
+            # architectural diversity
+            "diversity_hidden_layers": _safe_stat(
+                [len(c.architecture.get("hidden_layers", [])) for c in self.candidates.values()],
+                np.std),
+            "diversity_lr": _safe_stat(
+                [c.architecture.get("learning_rate", 0.0) for c in self.candidates.values()],
+                np.std),
+        })
+
+        # --- Decision context (global EU/p/benefit/cost if available) ---
+        if hasattr(self, "eu"):
+            log["expected_utility_global"] = float(self.eu)
+        if hasattr(self, "p"):
+            log["p_above_goal_global"] = float(self.p)
+        if hasattr(self, "benefit"):
+            log["benefit_global"] = float(self.benefit)
+        if hasattr(self, "cost"):
+            log["cost_global"] = float(self.cost)
+
+        # === PHASE 5: Ledger & cumulative compute ===
         self.size = len(self.candidates)
         self.current_snapshot = self.build_ledger()
         if track_all_models:
@@ -441,15 +538,13 @@ class Population:
                 .drop_duplicates(subset="id", keep="last")
             )
 
-        # Save the log
         prev_total = self.generation_logs[-1]["cumulative_compute"] if self.generation_logs else 0.0
-        log["cumulative_compute"] = prev_total + log["compute_this_gen"]
+        log["cumulative_compute"] = prev_total + compute_time
+        log["elapsed_gen_time"] = float(time.time() - gen_start)
 
+        # === Store & Return ===
         self.generation_logs.append(log)
-
-
         return self.candidates
-    
 
     def run_ebe(self,
             X_train, y_train, X_val, y_val,
@@ -508,72 +603,23 @@ class Population:
                 triggered = True
                 break
 
-        print("EBE process completed.")
+        # print("EBE process completed.")
 
         # === Post-EBE extended training if triggered ===
+        self.ebe_loop_time = time.time() - start_time  # total EBE search time
+
         if triggered and best_cand is not None:
-            print("[Post-EBE Extended Training] Launching extended training")
-
-            from scoring import convex_lb_discard
-            model = best_cand.model
-
-            # loaders
-            train_loader = dp.create_dataloader(
-                X=X_train, y=y_train,
-                batch_size=best_cand.batch_size,
-                generator=self.repro.torch_gen,
-                seed_worker=self.repro.seed_worker
+            self.extend_selected_candidate(
+                best_cand=best_cand,
+                X_train=X_train, y_train=y_train,
+                X_val=X_val, y_val=y_val,
+                baseline_metric=baseline_metric,
+                time_budget=time_budget,
+                start_time=start_time
             )
-            val_loader = dp.create_dataloader(
-                X=X_val, y=y_val,
-                batch_size=best_cand.batch_size,
-                generator=self.repro.torch_gen,
-                seed_worker=self.repro.seed_worker
-            )
-
-            extension = 5.0  # seconds per horizon bump
-            surpassed = False
-
-            while True:
-                elapsed = time.time() - start_time
-                if elapsed >= time_budget:
-                    print(f"Time budget exhausted ({elapsed:.2f}s), stopping.")
-                    break
-
-                # bump horizon forward
-                current_horizon = best_cand.metrics.get("forecast_horizon_time", 0.0) or 0.0
-                best_cand.metrics["forecast_horizon_time"] = current_horizon + extension
-
-                # train further
-                _, _, _, val_acc, _ = model.horizon_train(
-                    candidate=best_cand,
-                    train_loader=train_loader,
-                    val_loader=val_loader,
-                    task_type=self.task_type,
-                    return_lc=False
-                )
-
-                # baseline check
-                if val_acc is not None and val_acc >= baseline_metric:
-                    print(f"Candidate {best_cand.id} surpassed baseline "
-                        f"({val_acc:.3f} >= {baseline_metric:.3f})")
-                    surpassed = True
-                    break
-
-                # hopelessness check
-                if convex_lb_discard(best_cand, baseline_metric, b_ref=len(X_train), margin=0.1):
-                    print(f"Candidate {best_cand.id} deemed hopeless, stopping early.")
-                    break
-
-            if not surpassed:
-                best_val = best_cand.get_metric("val", "acc", last_only=True)
-                print(f"Candidate {best_cand.id} failed to surpass baseline. "
-                    f"Best={best_val:.3f}, Baseline={baseline_metric:.3f}")
-
         elif not triggered:
             print("[EBE] No evidence found that NN is worth training. Skipping extension.")
-        
-        self.current_snapshot = self.build_ledger().copy(deep=True)
+
         return self.current_snapshot
 
 
@@ -657,8 +703,8 @@ class Population:
     def fidelity_from_ledger(self, ledger_df, 
                          X_train, y_train, 
                          X_val, y_val,
+                         val_metric,
                          X_test=None, y_test=None,
-                         baseline_metric=None,
                          test_metric=None,
                          top_fraction=0.1):
         """
@@ -692,31 +738,27 @@ class Population:
             if isinstance(n_instances, (list, tuple)):
                 n_instances = n_instances[-1]
 
-            cand = Candidate(
-                model,
-                row.to_dict(),
-                starting_instances=int(max(1, n_instances)),
-                identifier=row.get("id"),
-            )
+            cand = Candidate(model, 
+                             row.to_dict(), 
+                             starting_instances=row["n_instances"][0], 
+                             id_counter=row["id"])
 
             # copy over forecast info
             cand.metrics["forecasted_val_acc"] = row["forecasted_val_acc"]
             cand.metrics["forecast_horizon_time"] = row.get("forecast_horizon_time")
 
-            # loaders
+             # loaders
             train_loader = dp.create_dataloader(
-                X=train_features,
-                y=train_targets,
+                X=X_train, y=y_train,
                 batch_size=cand.batch_size,
-                generator=self.repro.torch_generator,
-                worker_init_fn=self.repro.worker_init_fn,
+                generator=self.repro.torch_gen,
+                seed_worker=self.repro.seed_worker
             )
             val_loader = dp.create_dataloader(
-                X=val_features,
-                y=val_targets,
+                X=X_val, y=y_val,
                 batch_size=cand.batch_size,
-                generator=self.repro.torch_generator,
-                worker_init_fn=self.repro.worker_init_fn,
+                generator=self.repro.torch_gen,
+                seed_worker=self.repro.seed_worker
             )
 
             # train with ES
@@ -729,10 +771,11 @@ class Population:
             )
             best_train_loss, best_train_acc, best_val_loss, best_val_acc, lc = results
             counter_candidate += 1
+            beats_val_baseline = bool(best_val_acc >= val_metric)
 
-            # --- CLEANUP: ensure fidelity_val_acc is always scalar or NaN ---
-            if isinstance(best_val_acc, list):
-                best_val_acc = best_val_acc[-1] if best_val_acc else np.nan
+            # # --- CLEANUP: ensure fidelity_val_acc is always scalar or NaN ---
+            # if isinstance(best_val_acc, list):
+            #     best_val_acc = best_val_acc[-1] if best_val_acc else np.nan
 
             # --- NEW: evaluate on test set if provided ---
             test_loss, test_acc, beats_baseline = None, None, None
@@ -748,9 +791,9 @@ class Population:
                 cand.log_metric("test", "loss", test_loss)
                 cand.log_metric("test", "acc", test_acc)
 
-                # compare with baseline if provided
-                if baseline_metric is not None and test_acc is not None:
-                    beats_baseline = bool(test_acc >= test_metric)
+                # compare with test baseline if provided
+                if test_metric is not None and test_acc is not None:
+                    beats_test_baseline = bool(test_acc >= test_metric)
 
             fidelity_records.append({
                 "id": cand.id,
@@ -765,7 +808,8 @@ class Population:
                 "learning_curve": lc,
                 "test_acc": test_acc,
                 "test_loss": test_loss,
-                "beats_baseline": beats_baseline  # <<< NEW
+                "beats_val_baseline": beats_val_baseline,  # <<< NEW
+                "beats_test_baseline": beats_test_baseline  # <<< NEW
             })
 
         fidelity_ledger = pd.DataFrame(fidelity_records)
@@ -808,3 +852,96 @@ class Population:
         }
 
         return report
+
+    def extend_selected_candidate(self, best_cand,
+                              X_train, y_train, X_val, y_val,
+                              baseline_metric, time_budget, start_time):
+        """
+        Post-EBE extended training phase.
+        Runs one continuous early-stopping session with the remaining global time.
+        """
+
+        print("[Post-EBE Extended Training] Starting refinement phase")
+
+        # loaders
+        train_loader = dp.create_dataloader(
+            X=X_train, y=y_train,
+            batch_size=best_cand.batch_size,
+            generator=self.repro.torch_gen,
+            seed_worker=self.repro.seed_worker
+        )
+        val_loader = dp.create_dataloader(
+            X=X_val, y=y_val,
+            batch_size=best_cand.batch_size,
+            generator=self.repro.torch_gen,
+            seed_worker=self.repro.seed_worker
+        )
+
+        model = best_cand.model
+        self.extension_log = []
+        ext_start = time.time()
+        elapsed_global = time.time() - start_time
+        remaining_time = max(time_budget - elapsed_global, 10.0)
+
+        print(f"[Extension] Launching ES training (remaining {remaining_time:.1f}s)")
+
+        # run a single ES training session
+        best_train_loss, best_train_acc, best_val_loss, best_val_acc, lc = \
+            model.early_stopping_train(
+                candidate=best_cand,
+                train_loader=train_loader,
+                val_loader=val_loader,
+                task_type=self.task_type,
+                patience=30,
+                tol=1e-4,
+                max_time=remaining_time,
+                return_lc=True
+            )
+
+        surpassed = best_val_acc is not None and best_val_acc >= baseline_metric
+
+        # log snapshot
+        self.extension_log.append({
+            "elapsed_global": elapsed_global,
+            "remaining_time": remaining_time,
+            "val_acc": best_val_acc,
+            "val_loss": best_val_loss,
+            "train_acc": best_train_acc
+        })
+        print(f"[Extension] val_acc={best_val_acc:.4f} | "
+            f"Baseline={baseline_metric:.4f} | Surpassed? {surpassed}")
+
+        # timing summary
+        self.extended_training_time = time.time() - ext_start
+        total_elapsed = self.ebe_loop_time + self.extended_training_time
+
+        print(f"[Post-EBE Summary] EBE loop: {self.ebe_loop_time:.2f}s | "
+            f"Extension: {self.extended_training_time:.2f}s | "
+            f"Total: {total_elapsed:.2f}s")
+
+        # structured result
+        self.extension_result = {
+            "surpassed": surpassed,
+            "final_val_acc": best_val_acc,
+            "baseline": baseline_metric,
+            "elapsed_total": total_elapsed
+        }
+
+        self.extension_summary = {
+            "candidate_id": best_cand.id,
+            "surpassed_baseline": surpassed,
+            "final_val_acc": float(best_val_acc or 0.0),
+            "final_val_loss": float(best_val_loss or 0.0),
+            "best_train_acc": float(best_train_acc or 0.0),
+            "best_train_loss": float(best_train_loss or 0.0),
+            "baseline_metric": float(baseline_metric or 0.0),
+            "ebe_loop_time": float(getattr(self, "ebe_loop_time", 0.0)),
+            "extended_training_time": float(self.extended_training_time),
+            "total_elapsed": float(total_elapsed),
+            "extension_steps": 1
+        }
+
+        # ledger update
+        self.current_snapshot = self.build_ledger().copy(deep=True)
+        return self.current_snapshot
+

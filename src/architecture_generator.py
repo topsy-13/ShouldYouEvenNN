@@ -185,108 +185,46 @@ class DynamicNN(nn.Module):  # MLP
             self.scheduler.step()
 
 
-    # def oe_train(self, train_loader, val_loader=None,
-    #          num_epochs=1, val_frequency=1):
-    #     """
-    #     Train the model, logging per-batch metrics.
-    #     - val_loader: optional validation loader
-    #     - val_frequency: run validation every k batches (default=1 = every batch)
-    #     Returns:
-    #         batch_logs: list of dicts with train/val metrics
-    #         total_time: total wall-clock time spent in training
-    #     """
-    #     self.train()
-    #     batch_logs = []
-    #     total_batches = 0
-    #     total_time = 0.0
-
-    #     for epoch in range(num_epochs):
-    #         for features, labels in train_loader:
-    #             start = time.time()
-    #             total_batches += 1
-
-    #             # --- forward + backward ---
-    #             features, labels = features.to(self.device), labels.to(self.device)
-    #             if features.dim() > 2:
-    #                 features = features.view(features.size(0), -1)
-
-    #             self.optimizer.zero_grad()
-    #             outputs = self(features)
-    #             loss = self.criterion(outputs, labels)
-    #             loss.backward()
-    #             self.optimizer.step()
-
-    #             batch_time = time.time() - start
-    #             total_time += batch_time
-
-    #             with torch.no_grad():
-    #                 _, predicted = torch.max(outputs, 1)
-    #                 train_acc = (predicted == labels).float().mean().item()
-
-    #             log_entry = {
-    #                 "train_loss": loss.item(),
-    #                 "train_acc": train_acc,
-    #                 "val_loss": None,  # will be filled if validated
-    #                 "val_acc": None,
-    #                 "batch_effort": total_batches,
-    #                 "batch_time": batch_time,
-    #             }
-
-    #             # --- validation (conditional) ---
-    #             if val_loader is not None and (total_batches % val_frequency == 0):
-    #                 self.eval()
-    #                 correct, total, val_loss_sum = 0, 0, 0.0
-    #                 with torch.no_grad():
-    #                     for v_features, v_labels in val_loader:
-    #                         v_features, v_labels = v_features.to(self.device), v_labels.to(self.device)
-    #                         if v_features.dim() > 2:
-    #                             v_features = v_features.view(v_features.size(0), -1)
-
-    #                         v_outputs = self(v_features)
-    #                         v_loss = self.criterion(v_outputs, v_labels)
-    #                         val_loss_sum += v_loss.item() * v_features.size(0)
-
-    #                         _, v_pred = torch.max(v_outputs, 1)
-    #                         correct += (v_pred == v_labels).sum().item()
-    #                         total += v_labels.size(0)
-
-    #                 log_entry["val_acc"] = correct / total
-    #                 log_entry["val_loss"] = val_loss_sum / total
-    #                 self.train()
-
-    #             batch_logs.append(log_entry)
-
-    #     return batch_logs, total_time
-
-
-    # TODO: recheck this behavior with new batch logging    
-    def horizon_train(self, candidate, train_loader, val_loader,
-                      task_type='classification', return_lc=False):
+    def early_stopping_train(self, candidate, train_loader, val_loader,
+                            task_type='classification',
+                            patience=30, tol=1e-4, max_time=None,
+                            return_lc=True):
         """
-        Train until the forecast horizon (seconds) is reached.
-        Validation runs after every batch. No early stopping.
+        Train with classic early stopping and an optional time budget.
+
+        Stops when:
+        1. Validation metric fails to improve within `tol` for `patience` epochs, OR
+        2. The total elapsed training time exceeds `max_time` seconds.
+
+        Logs the full ES trajectory in candidate.metrics['learning_curve_es'].
+        Always restores the best weights found before stopping.
         """
 
-        horizon = candidate.metrics.get("forecast_horizon_time", None)
-        if horizon is None:
-            raise ValueError("Forecast horizon not found in candidate.metrics")
-
-        if return_lc:
-            learning_curve = {
-                'es_train_losses': [], 'es_val_losses': [],
-                'es_train_accs': [], 'es_val_accs': []
-            }
-
-        total_time = 0.0
-        keep_training = True
+        start_time = time.time()
+        best_state_dict = None
+        best_val_acc = -float('inf')
+        best_val_loss = float('inf')
+        best_train_acc, best_train_loss = None, None
+        patience_counter = 0
         epoch = 0
 
-        while keep_training and total_time < horizon:
+        # --- independent ES learning curve ---
+        learning_curve = {
+            'es_train_losses': [], 'es_val_losses': [],
+            'es_train_accs': [], 'es_val_accs': []
+        }
+        print('Testing model')
+        while True:
+            # --- time check before epoch ---
+            if max_time is not None and (time.time() - start_time) >= max_time:
+                print(f"[ES] Time budget ({max_time:.1f}s) exhausted before epoch {epoch}.")
+                break
+
             epoch += 1
             self.train()
+            running_train_loss, running_train_acc = [], []
 
             for features, labels in train_loader:
-                start = time.time()
                 features, labels = features.to(self.device), labels.to(self.device)
                 if features.dim() > 2:
                     features = features.view(features.size(0), -1)
@@ -297,65 +235,90 @@ class DynamicNN(nn.Module):  # MLP
                 loss.backward()
                 self.optimizer.step()
 
-                batch_time = time.time() - start
-                total_time += batch_time
-                candidate.log_effort(batch_time)
+                running_train_loss.append(loss.item())
+                if task_type == 'classification':
+                    _, predicted = torch.max(outputs, 1)
+                    train_acc = (predicted == labels).float().mean().item()
+                    running_train_acc.append(train_acc)
 
-                with torch.no_grad():
-                    if task_type == 'classification':
-                        _, predicted = torch.max(outputs, 1)
-                        train_acc = (predicted == labels).float().mean().item()
-                    else:
-                        train_acc = None
-
-                candidate.log_metric("train", "loss", loss.item())
-                candidate.log_metric("train", "acc", train_acc)
-
-                # ---- validation immediately after each batch ----
-                self.eval()
-                correct, total, val_loss_sum = 0, 0, 0.0
-                with torch.no_grad():
-                    for v_features, v_labels in val_loader:
-                        v_features, v_labels = v_features.to(self.device), v_labels.to(self.device)
-                        if v_features.dim() > 2:
-                            v_features = v_features.view(v_features.size(0), -1)
-                        v_outputs = self(v_features)
-                        v_loss = self.criterion(v_outputs, v_labels)
-                        val_loss_sum += v_loss.item() * v_features.size(0)
-                        if task_type == 'classification':
-                            _, v_pred = torch.max(v_outputs, 1)
-                            correct += (v_pred == v_labels).sum().item()
-                        total += v_labels.size(0)
-
-                val_loss = val_loss_sum / total
-                val_acc = (correct / total) if task_type == 'classification' else None
-                candidate.log_metric("val", "loss", val_loss)
-                candidate.log_metric("val", "acc", val_acc)
-
-                if return_lc:
-                    learning_curve['es_train_losses'].append(loss.item())
-                    learning_curve['es_val_losses'].append(val_loss)
-                    if task_type == 'classification':
-                        learning_curve['es_train_accs'].append(train_acc)
-                        learning_curve['es_val_accs'].append(val_acc)
-
-                # stop if horizon exceeded mid-epoch
-                if total_time >= horizon:
-                    keep_training = False
+                # --- time check mid-epoch ---
+                if max_time is not None and (time.time() - start_time) >= max_time:
+                    print(f"[ES] Time budget hit mid-epoch ({epoch}).")
                     break
 
-        if return_lc:
-            candidate.metrics["learning_curve_es"] = learning_curve
+            if not running_train_loss:  # time expired before first batch
+                break
+
+            train_loss = float(np.mean(running_train_loss))
+            train_acc = float(np.mean(running_train_acc)) if running_train_acc else None
+
+            # --- validation phase ---
+            self.eval()
+            correct, total, val_loss_sum = 0, 0, 0.0
+            with torch.no_grad():
+                for v_features, v_labels in val_loader:
+                    v_features, v_labels = v_features.to(self.device), v_labels.to(self.device)
+                    if v_features.dim() > 2:
+                        v_features = v_features.view(v_features.size(0), -1)
+                    v_outputs = self(v_features)
+                    v_loss = self.criterion(v_outputs, v_labels)
+                    val_loss_sum += v_loss.item() * v_features.size(0)
+                    if task_type == 'classification':
+                        _, v_pred = torch.max(v_outputs, 1)
+                        correct += (v_pred == v_labels).sum().item()
+                    total += v_labels.size(0)
+
+            val_loss = val_loss_sum / total
+            val_acc = (correct / total) if task_type == 'classification' else None
+
+            # --- store into ES curve only ---
+            learning_curve['es_train_losses'].append(train_loss)
+            learning_curve['es_val_losses'].append(val_loss)
+            if task_type == 'classification':
+                learning_curve['es_train_accs'].append(train_acc)
+                learning_curve['es_val_accs'].append(val_acc)
+
+            # --- improvement logic ---
+            improved = (
+                (task_type == 'classification' and val_acc is not None and val_acc > best_val_acc + tol)
+                or
+                (task_type == 'regression' and val_loss < best_val_loss - tol)
+            )
+
+            if improved:
+                patience_counter = 0
+                best_val_acc = val_acc if val_acc is not None else best_val_acc
+                best_val_loss = val_loss
+                best_train_acc = train_acc
+                best_train_loss = train_loss
+                best_state_dict = {k: v.cpu().clone() for k, v in self.state_dict().items()}
+            else:
+                patience_counter += 1
+
+            if patience_counter >= patience:
+                print(f"[ES] Early stopping triggered at epoch {epoch}.")
+                break
+
+            if max_time is not None and (time.time() - start_time) >= max_time:
+                print(f"[ES] Time budget expired after epoch {epoch}.")
+                break
+
+        # --- restore best weights ---
+        if best_state_dict is not None:
+            self.load_state_dict(best_state_dict)
+            print(f"[ES] Restored best model (val_acc={best_val_acc:.4f})")
+
+        # --- attach ES record to candidate ---
+        candidate.metrics["learning_curve_es"] = learning_curve
 
         return (
-            candidate.get_metric("train", "loss", last_only=True),
-            candidate.get_metric("train", "acc", last_only=True),
-            candidate.get_metric("val", "loss", last_only=True),
-            candidate.get_metric("val", "acc", last_only=True),
+            best_train_loss,
+            best_train_acc,
+            best_val_loss,
+            best_val_acc,
             learning_curve if return_lc else None
         )
-
-
+    
 
     def evaluate(self, val_loader):
         task_type = self.task_type

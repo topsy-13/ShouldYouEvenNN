@@ -189,14 +189,6 @@ def get_val_acc_vs_time(candidate) -> tuple[np.ndarray, Sequence[float]]:
     return times[:k], val_accs[:k]
 
 
-def project_future_time(
-    candidate,
-    dataset_size: int,
-    *,
-    growth: float = 1.4,
-    extra_full_passes: int = 3,
-) -> Optional[float]:
-    """Estimate the absolute time horizon used for forecasting."""
 
 def project_future_time(candidate, dataset_size, extra_full_passes=10):
     """
