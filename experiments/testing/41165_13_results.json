@@ -9,5 +9,8 @@
     "mlp_training_time": 47.03224730491638,
     "mlp_train_acc": 1.0,
     "mlp_train_loss": 0.0016572014524254552,
-    "mlp_test_acc": 0.4015
+    "mlp_test_acc": 0.4015,
+    "naml_time_taken": 26925.109308719635,
+    "naml_best_validation_metric": 0.5092,
+    "naml_test_accuracy": 0.532
 }

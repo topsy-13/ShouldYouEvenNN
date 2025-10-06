@@ -1,0 +1,16 @@
+{
+    "exp_id": "40900_13",
+    "data_id": 40900,
+    "seed": 13,
+    "n_rows": 4080,
+    "n_features": 36,
+    "hgb_accuracy": 0.9921568627450981,
+    "hgb_training_time_sec": 0.16350936889648438,
+    "mlp_training_time": 1.2969691753387451,
+    "mlp_train_acc": 1.0,
+    "mlp_train_loss": 0.002189736578746142,
+    "mlp_test_acc": 0.9941176470588236,
+    "naml_time_taken": 38.21074676513672,
+    "naml_best_validation_metric": 0.9967,
+    "naml_test_accuracy": 0.9921568627450981
+}
