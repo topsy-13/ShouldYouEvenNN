@@ -1,0 +1,310 @@
+{
+    "1590": {
+        "dataset_name": "adult",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 12:40:41",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "1169": {
+        "dataset_name": "airlines",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 12:41:52",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "41147": {
+        "dataset_name": "albert",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 13:56:51",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "1457": {
+        "dataset_name": "amazon-commerce-reviews",
+        "error_type": "ValueError",
+        "error_message": "The train_size = 48 should be greater or equal to the number of classes = 50",
+        "timestamp": "2025-10-06 13:56:52",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 82, in main\n    pop.run_ebe(\n  File \"C:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\src\\ebe.py\", line 585, in run_ebe\n    self.candidates = self.run_generation(\n                      ^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\src\\ebe.py\", line 411, in run_generation\n    self.train_generation(X_train, y_train,\n  File \"C:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\src\\ebe.py\", line 173, in train_generation\n    X_sampled, y_sampled = sample_data(\n                           ^^^^^^^^^^^^\n  File \"C:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\src\\instance_sampling.py\", line 43, in sample_data\n    train_index, _ = next(sss.split(X, y))\n                     ^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\user\\anaconda3\\envs\\AutoML\\Lib\\site-packages\\sklearn\\model_selection\\_split.py\", line 1843, in split\n    for train, test in self._iter_indices(X, y, groups):\n  File \"C:\\Users\\user\\anaconda3\\envs\\AutoML\\Lib\\site-packages\\sklearn\\model_selection\\_split.py\", line 2260, in _iter_indices\n    raise ValueError(\nValueError: The train_size = 48 should be greater or equal to the number of classes = 50\n"
+    },
+    "4135": {
+        "dataset_name": "Amazon_employee_access",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 13:58:03",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "41138": {
+        "dataset_name": "APSFailure",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 13:59:16",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "40981": {
+        "dataset_name": "Australian",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 14:00:23",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "1461": {
+        "dataset_name": "bank-marketing",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 14:01:25",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "40975": {
+        "dataset_name": "car",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 14:02:39",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "40701": {
+        "dataset_name": "churn",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 14:03:50",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "1468": {
+        "dataset_name": "cnae-9",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 14:06:52",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "1596": {
+        "dataset_name": "covertype",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 14:13:11",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "41163": {
+        "dataset_name": "dilbert",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 14:16:58",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "41167": {
+        "dataset_name": "dionis",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 14:36:29",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "40670": {
+        "dataset_name": "dna",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 14:37:31",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "40996": {
+        "dataset_name": "Fashion-MNIST",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 14:41:47",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "41158": {
+        "dataset_name": "gina",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 14:43:22",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "41159": {
+        "dataset_name": "guillermo",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 14:44:43",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "42769": {
+        "dataset_name": "Higgs",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 14:50:23",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "40978": {
+        "dataset_name": "Internet-Advertisements",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 14:52:54",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "41027": {
+        "dataset_name": "jungle_chess_2pcs_raw_endgame_complete",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 14:55:45",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "43072": {
+        "dataset_name": "KDDCup09-Upselling",
+        "error_type": "ValueError",
+        "error_message": "Columns must be same length as key",
+        "timestamp": "2025-10-06 14:56:06",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 34, in main\n    X_train, y_train, X_val, y_val, X_test, y_test = dp.get_preprocessed_data(\n                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\src\\data_preprocessing.py\", line 218, in get_preprocessed_data\n    X_train, X_val, X_test = impute_features(\n                             ^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\src\\data_preprocessing.py\", line 180, in impute_features\n    X_train[num_cols] = num_imputer.fit_transform(X_train[num_cols])\n    ~~~~~~~^^^^^^^^^^\n  File \"C:\\Users\\user\\anaconda3\\envs\\AutoML\\Lib\\site-packages\\pandas\\core\\frame.py\", line 4299, in __setitem__\n    self._setitem_array(key, value)\n  File \"C:\\Users\\user\\anaconda3\\envs\\AutoML\\Lib\\site-packages\\pandas\\core\\frame.py\", line 4350, in _setitem_array\n    self._iset_not_inplace(key, value)\n  File \"C:\\Users\\user\\anaconda3\\envs\\AutoML\\Lib\\site-packages\\pandas\\core\\frame.py\", line 4377, in _iset_not_inplace\n    raise ValueError(\"Columns must be same length as key\")\nValueError: Columns must be same length as key\n"
+    },
+    "1111": {
+        "dataset_name": "KDDCup09_appetency",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 14:57:49",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "42746": {
+        "dataset_name": "KDDCup99",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 15:16:19",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "41162": {
+        "dataset_name": "kick",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 15:17:36",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "3": {
+        "dataset_name": "kr-vs-kp",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 15:18:36",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "12": {
+        "dataset_name": "mfeat-factors",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 15:19:51",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "1515": {
+        "dataset_name": "micro-mass",
+        "error_type": "ValueError",
+        "error_message": "The train_size = 18 should be greater or equal to the number of classes = 20",
+        "timestamp": "2025-10-06 15:19:51",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 82, in main\n    pop.run_ebe(\n  File \"C:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\src\\ebe.py\", line 585, in run_ebe\n    self.candidates = self.run_generation(\n                      ^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\src\\ebe.py\", line 411, in run_generation\n    self.train_generation(X_train, y_train,\n  File \"C:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\src\\ebe.py\", line 173, in train_generation\n    X_sampled, y_sampled = sample_data(\n                           ^^^^^^^^^^^^\n  File \"C:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\src\\instance_sampling.py\", line 43, in sample_data\n    train_index, _ = next(sss.split(X, y))\n                     ^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\user\\anaconda3\\envs\\AutoML\\Lib\\site-packages\\sklearn\\model_selection\\_split.py\", line 1843, in split\n    for train, test in self._iter_indices(X, y, groups):\n  File \"C:\\Users\\user\\anaconda3\\envs\\AutoML\\Lib\\site-packages\\sklearn\\model_selection\\_split.py\", line 2260, in _iter_indices\n    raise ValueError(\nValueError: The train_size = 18 should be greater or equal to the number of classes = 20\n"
+    },
+    "41150": {
+        "dataset_name": "MiniBooNE",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 15:21:47",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "1486": {
+        "dataset_name": "nomao",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 15:22:57",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "42734": {
+        "dataset_name": "okcupid-stem",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 15:25:24",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "1049": {
+        "dataset_name": "pc4",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 15:26:26",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "4534": {
+        "dataset_name": "PhishingWebsites",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 15:28:10",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "1489": {
+        "dataset_name": "phoneme",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 15:29:11",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "42742": {
+        "dataset_name": "porto-seguro",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 15:31:19",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "41161": {
+        "dataset_name": "riccardo",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 15:32:58",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "41165": {
+        "dataset_name": "robert",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 15:50:24",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "40900": {
+        "dataset_name": "Satellite",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 15:51:26",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "40984": {
+        "dataset_name": "segment",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 15:52:26",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "42732": {
+        "dataset_name": "sf-police-incidents",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 16:07:29",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "40685": {
+        "dataset_name": "shuttle",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 16:08:36",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "41146": {
+        "dataset_name": "sylvine",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 16:09:45",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "41166": {
+        "dataset_name": "volkert",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 16:11:05",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    },
+    "40983": {
+        "dataset_name": "wilt",
+        "error_type": "TypeError",
+        "error_message": "unsupported format string passed to NoneType.__format__",
+        "timestamp": "2025-10-06 16:12:05",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 78, in main\n    ebe_results = ebe_experiment.main(data_id, SEED,\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\ebe_experiment.py\", line 196, in main\n    print(f\"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}\")\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: unsupported format string passed to NoneType.__format__\n"
+    }
+}
