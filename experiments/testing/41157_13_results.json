@@ -1,16 +1,5 @@
 {
     "exp_id": "41157_13",
     "data_id": 41157,
-    "seed": 13,
-    "n_rows": 80,
-    "n_features": 10000,
-    "hgb_accuracy": 0.6,
-    "hgb_training_time_sec": 1.7177460193634033,
-    "mlp_training_time": 0.4907984733581543,
-    "mlp_train_acc": 1.0,
-    "mlp_train_loss": 0.000260741097938789,
-    "mlp_test_acc": 0.8,
-    "naml_time_taken": 412.691353559494,
-    "naml_best_validation_metric": 0.8,
-    "naml_test_accuracy": 0.8
+    "seed": 13
 }
