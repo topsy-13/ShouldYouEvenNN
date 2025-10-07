@@ -93,61 +93,61 @@ def plot_forecast_vs_fidelity(fidelity_report: Mapping[str, pd.DataFrame], *, ti
 
 def plot_es_learning_curve_from_ledger(row, title=None):
     """
-    Plot ES learning curve from a fidelity_ledger row with time axis scaled to the forecast horizon,
-    including forecasted confidence interval at the final step.
+    Plot ES learning curve from a fidelity_ledger row, using cumulative effort (mini-batches)
+    as the horizontal axis. Includes the forecasted accuracy, horizon, and confidence interval.
     """
     import matplotlib.pyplot as plt
     import numpy as np
+    import seaborn as sns
 
+    # --- Extract learning curve ---
     curve = row.get("learning_curve")
     if curve is None:
         raise ValueError("No learning curve stored for this candidate row.")
 
-    val_accs = curve.get("es_val_accs")
+    val_accs = curve.get("es_val_accs", [])
     if not val_accs:
         raise ValueError("Learning curve has no validation accuracy points.")
 
-    # forecast info
-    fcst_acc = row.get("forecasted_val_acc", None)
-    fcst_time = row.get("forecast_horizon_time", None)
-    ci_lower, ci_upper = row.get("forecasted_CI_low", None), row.get("forecasted_CI_high", None)
+    n_points = len(val_accs)
+    times = np.arange(1, n_points + 1, dtype=float)  # 1, 2, 3, ...
 
-    if forecast_time is not None:
-        times = np.linspace(0, forecast_time, n_points)
-    else:
-        times = np.arange(n_points)
+    # --- Forecast info ---
+    fcst_acc = row.get("forecasted_val_acc")
+    fcst_effort = row.get("forecast_horizon_effort", row.get("forecast_horizon_time"))
+    ci_lower, ci_upper = row.get("forecasted_CI_low"), row.get("forecasted_CI_high")
+    fcst_at = row.get("forecasted_at", times[-1])  # where forecast was made, fallback
 
+    # --- Plot ---
     plt.figure(figsize=(8, 5))
     plt.plot(times, val_accs, "o-", color="blue", label="ES val_acc")
-    plt.vlines(row.get('forecasted_at'), color='black', linestyle='--', ymin=0, ymax=1, label='Forecast made at')
-    # forecast overlay
-    if fcst_acc is not None and fcst_time is not None:
-        # Horizon lines
-        plt.axvline(fcst_time, color="red", linestyle="--", label="Forecast horizon")
-        plt.axhline(fcst_acc, color="red", linestyle="--", label=f"Forecasted acc={fcst_acc:.3f}")
+    plt.axvline(fcst_at, color="black", linestyle="--", ymax=1, label="Forecast made at")
 
-        # Add CI whisker + shading if available
+    # --- Forecast overlay ---
+    if fcst_acc is not None and fcst_effort is not None:
+        plt.axvline(fcst_effort, color="red", linestyle="--", label="Forecast horizon")
+        plt.axhline(fcst_acc, color="red", linestyle="--",
+                    label=f"Forecasted acc = {fcst_acc:.3f}")
+
         if ci_lower is not None and ci_upper is not None:
-            # Vertical whisker
-            plt.vlines(fcst_time, ci_lower, ci_upper, color="black", lw=1.5)
+            # vertical whisker
+            plt.vlines(fcst_effort, ci_lower, ci_upper, color="black", lw=1.5)
+            # small horizontal ticks
             plt.hlines([ci_lower, ci_upper],
-                       fcst_time - 0.02 * fcst_time,
-                       fcst_time + 0.02 * fcst_time,
+                       fcst_effort * 0.97, fcst_effort * 1.03,
                        color="black", lw=1.5)
-
-            # Subtle shaded box around the CI
+            # subtle shaded box
             plt.fill_betweenx([ci_lower, ci_upper],
-                              fcst_time - 0.03 * fcst_time,
-                              fcst_time + 0.03 * fcst_time,
+                              fcst_effort * 0.97, fcst_effort * 1.03,
                               color="gray", alpha=0.2)
 
-    plt.xlabel("Cumulative Time (s)")
+    plt.xlabel("Cumulative Effort (mini-batches)")
     plt.ylabel("Validation Accuracy")
-    plt.title(title or f"Candidate {row.get('id', '?')} ES vs Forecast")
+    plt.title(title or f"Candidate {row.get('id', '?')} — ES vs Forecast")
     plt.legend()
     plt.grid(alpha=0.3)
     plt.xlim(left=0)
     plt.ylim(0, 1.0)
-    # Despine for aesthetics
     sns.despine()
     plt.tight_layout()
+

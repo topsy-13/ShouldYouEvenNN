@@ -131,24 +131,37 @@ def plot_time_efficiency(df: pd.DataFrame, out_dir: str | Path = None):
 
 
 # ---------------------------------------------------------------------
-# 4. LaTeX summary table
+# 4. LaTeX summary table (simple + safe)
 # ---------------------------------------------------------------------
 def latex_summary_table(df: pd.DataFrame) -> str:
-    tbl = df[
-        [
-            "ebe_p_above_goal",
-            "ebe_expected_utility",
-            "ebe_benefit_est",
-            "ebe_cost_est",
-            "ebe_val_acc",
-            "ebe_test_acc",
+    """
+    Export a concise LaTeX summary table with safe escaping.
+    Includes mean and std for the main EBE-NAS metrics.
+    """
+    tbl = (
+        df[
+            [
+                "ebe_p_above_goal",
+                "ebe_expected_utility",
+                "ebe_benefit_est",
+                "ebe_cost_est",
+                "ebe_val_acc",
+                "ebe_test_acc",
+            ]
         ]
-    ].describe().T[["mean", "std"]]
-    return tbl.to_latex(
+        .describe()
+        .T[["mean", "std"]]
+    )
+
+    # Export to LaTeX with proper escaping of underscores and special chars
+    latex_str = tbl.to_latex(
         float_format="%.3f",
         caption="Aggregate EBE-NAS Performance Summary",
         label="tab:ebe_summary",
+        escape=True  # <-- key fix
     )
+
+    return latex_str
 
 
 # ---------------------------------------------------------------------

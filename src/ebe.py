@@ -82,7 +82,7 @@ class Population:
 
 
         def train_one_candidate(candidate, train_loader, val_loader,
-                        num_epochs=1, val_frequency=1):
+                        num_epochs=1, val_frequency=1, measure_wall_time: bool = True):
             """
             Train a single candidate, logging metrics per batch directly into Candidate.metrics.
             Validation is mandatory and runs every `val_frequency` batches.
@@ -90,13 +90,13 @@ class Population:
             """
             model = candidate.model
             model.train()
-            total_batches = 0
             epoch_time_acc = 0.0
+            total_batches = 0
 
             for epoch in range(num_epochs):
                 n_batches_epoch = 0
                 for features, labels in train_loader: # one batch
-                    start = time.time()
+                    start = time.time() if measure_wall_time else None
 
                     # forward + backward
                     features, labels = features.to(model.device), labels.to(model.device)
@@ -120,7 +120,9 @@ class Population:
                     # log train metrics
                     candidate.log_metric("train", "loss", loss.item())
                     candidate.log_metric("train", "acc", train_acc)
-                    candidate.log_effort(batch_time)
+                    batch_wall = (time.time() - start) if measure_wall_time else None
+                    candidate.log_effort(batch_wall_time=batch_wall)
+                    
                     n_batches_epoch += 1
 
                     # validation (always required)
@@ -148,12 +150,11 @@ class Population:
                         model.train()
                         
 
-            # store epoch timing as list
-            if "epoch_time" not in candidate.metrics:
-                candidate.metrics["epoch_time"] = []
-            candidate.metrics["epoch_time"].append(epoch_time_acc)
+            # store epoch batches
+            candidate.metrics.setdefault("epoch_batches", [])
+            candidate.metrics["epoch_batches"].append(n_batches_epoch)
 
-            return epoch_time_acc
+            return n_batches_epoch
 
         """Train all candidates in the population."""
         start_time = time.time()
@@ -196,16 +197,12 @@ class Population:
                         seed_worker=self.repro.seed_worker
                     )
 
-                epoch_time = train_one_candidate(
+                epoch_batches = train_one_candidate(
                     candidate, train_loader, val_loader,
                     num_epochs=1, val_frequency=1
                 )
-
-
-                # log epoch time
-                if "epoch_time" not in candidate.metrics:
-                    candidate.metrics["epoch_time"] = []
-                candidate.metrics["epoch_time"].append(epoch_time)
+                candidate.metrics.setdefault("epoch_batches", [])
+                candidate.metrics["epoch_batches"].append(epoch_batches)
 
                 # update budget + epoch counter
                 candidate.next_anchor(growth=1.4, max_cap=len(X_train))
@@ -563,7 +560,6 @@ class Population:
             (a) baseline surpassed,
             (b) time budget exhausted,
             (c) convex LB says hopeless.
-        - Fidelity check always runs at the end. #!
         """
 
         self.current_snapshot = self.initial_ledger
@@ -623,18 +619,17 @@ class Population:
         return self.current_snapshot
 
 
-    def fidelity_training(self, X_train, y_train, X_val, y_val, 
-                          X_test=None, y_test=None):
-        # === Fidelity check ===
-        print("Training top by ES (fidelity check)")
-        self.fidelity_ledger = self.fidelity_from_ledger(
-            ledger_df=self.current_snapshot,
-            X_train=X_train, y_train=y_train,
-            X_val=X_val, y_val=y_val,
-            top_fraction=1, # all of them,
-            X_test=X_test, y_test=y_test
-        )
-        return self.fidelity_ledger
+    # def fidelity_training(self, X_train, y_train, X_val, y_val, 
+    #                       X_test=None, y_test=None):
+    #     # === Fidelity check ===
+    #     print("Training top by ES (fidelity check)")
+    #     self.fidelity_ledger = self.fidelity_from_ledger(
+    #         ledger_df=self.current_snapshot,
+    #         X_train=X_train, y_train=y_train,
+    #         X_val=X_val, y_val=y_val,
+    #         top_fraction=1, # all of them,
+    #     )
+    #     return self.fidelity_ledger
 
     
 
@@ -660,27 +655,26 @@ class Population:
 
 
     def worth_training_neural_bayes(self, baseline_metric, cost_scale=1.0, tol=0.0):
-        best_cand = max(self.candidates.values(),
-                        key=lambda c: c.metrics.get("p_above_goal", 0.0))
+        best_cand = max(self.candidates.values(), key=lambda c: c.metrics.get("p_above_goal", 0.0))
 
         p    = best_cand.metrics.get("p_above_goal", 0.0)
         fcst = best_cand.metrics.get("forecasted_val_acc", 0.0)
         benefit = max(0.02, fcst - baseline_metric)
 
-        t_future = best_cand.metrics.get("forecast_horizon_time") or 0.0
-        t_spent  = best_cand.cumulative_times[-1] if best_cand.cumulative_times else 0.0
-        projected_remaining_time = max(0.0, t_future - t_spent)
+        # effort-based horizon
+        e_future = best_cand.metrics.get("forecast_horizon_time") or 0.0   # effort units now
+        e_spent  = best_cand.cumulative_effort[-1] if getattr(best_cand, "cumulative_effort", None) else 0.0
+        projected_remaining_effort = max(0.0, e_future - e_spent)
 
-        norm_cost = projected_remaining_time / (projected_remaining_time + 1.0)
+        # normalized cost proxy in [0,1)
+        norm_cost = projected_remaining_effort / (projected_remaining_effort + 1.0)
 
         gen = getattr(self, "generations_completed", 0)
         exploration_weight = max(0.3, 1.0 - 0.01 * gen)
 
-        EU = (p * benefit * exploration_weight) \
-            - (1 - p) * 0.05 \
-            - cost_scale * 0.1 * norm_cost
+        EU = (p * benefit * exploration_weight) - (1 - p) * 0.05 - cost_scale * 0.1 * norm_cost
+        return EU > tol, EU, p, benefit, projected_remaining_effort
 
-        return EU > tol, EU, p, benefit, projected_remaining_time
 
 
     
@@ -700,54 +694,40 @@ class Population:
         return df
     
 
-    def fidelity_from_ledger(self, ledger_df, 
-                         X_train, y_train, 
+    def fidelity_from_ledger(self, ledger_df,
+                         X_train, y_train,
                          X_val, y_val,
-                         val_metric,
-                         X_test=None, y_test=None,
-                         test_metric=None,
-                         top_fraction=0.1):
+                         top_fraction=0.1,
+                         max_time=None):
         """
-        Rebuild models from ledger rows and retrain them with ES
-        to compare forecast vs actual performance.
-        Also evaluates on test set if provided.
+        Rebuild a subset of models from a ledger and retrain them 
+        with early stopping to obtain their actual validation performance.
+
+        Used purely for forecast-vs-actual benchmarking.
         """
 
-        import pandas as pd
-        from architecture_generator import create_model_from_row
-
-        # rank by forecasted_val_acc
+        # --- Select top candidates by forecasted validation accuracy ---
         ranked = ledger_df.sort_values("forecasted_val_acc", ascending=False)
         n_keep = max(1, int(len(ranked) * top_fraction))
         chosen = ranked.head(n_keep)
 
         fidelity_records = []
 
-        counter_candidate = 1
-        for _, row in chosen.iterrows():
-            print(f"Processing candidate {counter_candidate} with id {row['id']} out of {n_keep}")
-            # rebuild model from the ledger row
+        for idx, row in enumerate(chosen.itertuples(), 1):
+            print(f"[Fidelity] Candidate {idx}/{n_keep} (id={row.id})")
+
+            # --- Rebuild model from ledger row ---
             model = create_model_from_row(
-                row,
+                row._asdict(),
                 input_size=self.search_space.input_size,
                 output_size=self.search_space.output_size,
                 task_type=self.task_type,
             )
 
-            n_instances = row.get("n_instances", 1)
-            if isinstance(n_instances, (list, tuple)):
-                n_instances = n_instances[-1]
+            # --- Minimal candidate wrapper for logging ---
+            cand = Candidate(model, row._asdict(), id_counter=row.id)
 
-            cand = Candidate(model, 
-                             row.to_dict(), 
-                             starting_instances=row["n_instances"][0], 
-                             id_counter=row["id"])
-
-            # copy over forecast info
-            cand.metrics["forecasted_val_acc"] = row["forecasted_val_acc"]
-            cand.metrics["forecast_horizon_time"] = row.get("forecast_horizon_time")
-
-             # loaders
+            # --- Data loaders ---
             train_loader = dp.create_dataloader(
                 X=X_train, y=y_train,
                 batch_size=cand.batch_size,
@@ -761,55 +741,32 @@ class Population:
                 seed_worker=self.repro.seed_worker
             )
 
-            # train with ES
-            results = model.horizon_train(
-                candidate=cand,
-                train_loader=train_loader,
-                val_loader=val_loader,
+            # --- Train with early stopping ---
+            (
+                best_train_loss,
+                best_train_acc,
+                best_val_loss,
+                best_val_acc,
+                lc
+            ) = model.early_stopping_train(
+                cand, train_loader, val_loader,
                 task_type=self.task_type,
+                max_time=max_time,
                 return_lc=True
             )
-            best_train_loss, best_train_acc, best_val_loss, best_val_acc, lc = results
-            counter_candidate += 1
-            beats_val_baseline = bool(best_val_acc >= val_metric)
 
-            # # --- CLEANUP: ensure fidelity_val_acc is always scalar or NaN ---
-            # if isinstance(best_val_acc, list):
-            #     best_val_acc = best_val_acc[-1] if best_val_acc else np.nan
-
-            # --- NEW: evaluate on test set if provided ---
-            test_loss, test_acc, beats_baseline = None, None, None
-            if X_test is not None and y_test is not None:
-                test_loader = dp.create_dataloader(
-                    X=X_test, y=y_test,
-                    batch_size=cand.batch_size,
-                    generator=self.repro.torch_gen,
-                    seed_worker=self.repro.seed_worker,
-                    shuffle=False
-                )
-                test_loss, test_acc = model.evaluate(test_loader)
-                cand.log_metric("test", "loss", test_loss)
-                cand.log_metric("test", "acc", test_acc)
-
-                # compare with test baseline if provided
-                if test_metric is not None and test_acc is not None:
-                    beats_test_baseline = bool(test_acc >= test_metric)
-
+            # --- Store minimal fidelity record ---
             fidelity_records.append({
                 "id": cand.id,
-                "forecasted_val_acc": cand.metrics["forecasted_val_acc"],
-                "forecasted_CI_high": row.get("forecast_CI_high"),
-                "forecasted_CI_low": row.get("forecast_CI_low"),
-                "forecasted_at": row["cumulative_times"][-1],
-                "forecast_horizon_time": cand.metrics.get("forecast_horizon_time"),
+                "forecasted_val_acc": getattr(row, "forecasted_val_acc", None),
+                "forecasted_CI_high": getattr(row, "forecast_CI_high", None),
+                "forecasted_CI_low": getattr(row, "forecast_CI_low", None),
+                "forecast_horizon_time": getattr(row, "forecast_horizon_time", None),
                 "fidelity_val_acc": best_val_acc,
-                "fidelity_train_acc": best_train_acc,
                 "fidelity_val_loss": best_val_loss,
+                "fidelity_train_acc": best_train_acc,
+                "fidelity_train_loss": best_train_loss,
                 "learning_curve": lc,
-                "test_acc": test_acc,
-                "test_loss": test_loss,
-                "beats_val_baseline": beats_val_baseline,  # <<< NEW
-                "beats_test_baseline": beats_test_baseline  # <<< NEW
             })
 
         fidelity_ledger = pd.DataFrame(fidelity_records)
@@ -817,41 +774,8 @@ class Population:
             "fidelity_val_acc", ascending=False, na_position="last"
         )
 
-        self.fidelity_ledger = fidelity_ledger
         return fidelity_ledger
 
-
-
-    def compare_forecast_vs_fidelity(self):
-        """
-        Compare forecasted validation accuracy against actual ES accuracy.
-        Returns error stats (MAE, bias) and per-candidate deltas.
-        """
-        if not hasattr(self, "fidelity_ledger"):
-            raise RuntimeError("Run post_ebe_fidelity_check or es_fidelity_from_ledger first.")
-
-        df = self.fidelity_ledger.copy()
-
-        fcst = df["forecasted_val_acc"].astype(float)
-        actual = df["fidelity_val_acc"].astype(float)
-
-        deltas = actual - fcst
-        mae = float(np.mean(np.abs(deltas)))
-        bias = float(np.mean(deltas))
-
-        report = {
-            "MAE": mae,
-            "Bias": bias,
-            "n": len(df),
-            "details": pd.DataFrame({
-                "id": df["id"],
-                "forecasted_val_acc": fcst,
-                "fidelity_val_acc": actual,
-                "delta": deltas
-            }).sort_values("delta", ascending=False)
-        }
-
-        return report
 
     def extend_selected_candidate(self, best_cand,
                               X_train, y_train, X_val, y_val,
@@ -945,3 +869,53 @@ class Population:
         self.current_snapshot = self.build_ledger().copy(deep=True)
         return self.current_snapshot
 
+
+def compare_forecast_vs_fidelity(fidelity_df):
+    """
+    Compare forecasted validation accuracy against actual
+    early-stopping validation accuracy.
+
+    Returns:
+        dict with:
+            - MAE   : Mean Absolute Error (|forecast - actual|)
+            - Bias  : Mean signed error (actual - forecast)
+            - n     : Number of compared candidates
+            - details : DataFrame with id, forecast, actual, delta
+    """
+
+    import numpy as np
+    import pandas as pd
+
+    # --- Basic validation ---
+    required_cols = {"id", "forecasted_val_acc", "fidelity_val_acc"}
+    missing = required_cols - set(fidelity_df.columns)
+    if missing:
+        raise ValueError(f"Missing required columns in fidelity_df: {missing}")
+
+    df = fidelity_df.dropna(subset=["forecasted_val_acc", "fidelity_val_acc"]).copy()
+
+    if len(df) == 0:
+        raise ValueError("No valid rows to compare (all NaN).")
+
+    fcst = df["forecasted_val_acc"].astype(float)
+    actual = df["fidelity_val_acc"].astype(float)
+
+    deltas = actual - fcst
+    mae = float(np.mean(np.abs(deltas)))
+    bias = float(np.mean(deltas))
+
+    details = pd.DataFrame({
+        "id": df["id"],
+        "forecasted_val_acc": fcst,
+        "fidelity_val_acc": actual,
+        "delta": deltas
+    }).sort_values("delta", ascending=False, na_position="last")
+
+    report = {
+        "MAE": mae,
+        "Bias": bias,
+        "n": len(df),
+        "details": details
+    }
+
+    return report

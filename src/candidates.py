@@ -17,11 +17,12 @@ class Candidate:
         self.epochs_trained = 0
         
         # NEW: track batches
-        self.batches_trained = 0
-        self.cumulative_times = []
+        self.batches_trained = 0    
+        self.cumulative_times = [] # legacy
 
         # training logs
         self.efforts = []  # list of per-batch times
+        self.cumulative_effort = []  # list of per-batch times
         self.metrics = {
             "train": {"loss": [], "acc": []},
             "val": {"loss": [], "acc": []},
@@ -31,16 +32,27 @@ class Candidate:
         }
         
 
-    def log_effort(self, batch_time: float):
+    def log_effort(self, batch_wall_time: float | None = None):
         """
-        Log the wall-clock time per batch and increment batch counter.
+        Deterministic effort logging:
+        - +1 effort unit per processed mini-batch
+        - cumulative_effort mirrors total batches
+        - cumulative_times is kept in sync for backward compatibility
+        - optional batch_wall_time stored only for reporting
         """
-        self.efforts.append(batch_time)
         self.batches_trained += 1
-        if self.cumulative_times:
-            self.cumulative_times.append(self.cumulative_times[-1] + batch_time)
-        else:
-            self.cumulative_times.append(batch_time)
+        self.efforts.append(1.0)
+
+        next_eff = (self.cumulative_effort[-1] + 1.0) if self.cumulative_effort else 1.0
+        self.cumulative_effort.append(next_eff)
+
+        # legacy mirror so existing code using 'cumulative_times' still works
+        self.cumulative_times = self.cumulative_effort[:]
+
+        if batch_wall_time is not None:
+            self.metrics.setdefault("wall_times_per_batch", []).append(float(batch_wall_time))
+
+
 
     def update_n_instances(self, n_instances):
         self.n_instances.append(n_instances)
@@ -148,7 +160,8 @@ class Candidate:
             "epochs_trained": self.epochs_trained,
             "batches_trained": self.batches_trained,
             "efforts": self.efforts,
-            "cumulative_times": self.cumulative_times,   # <<< NEW FIELD
+            "cumulative_effort": self.cumulative_effort,   # new
+            "cumulative_times": self.cumulative_times,   # legacy
             **flat_arch,
             **flat_metrics
         }

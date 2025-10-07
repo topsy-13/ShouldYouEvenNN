@@ -67,13 +67,11 @@ def main(
                      seed=seed, 
                      task_type='classification')
 
-    time_budget_ebe = max(hist_time_taken * BUDGET_FACTOR, mlp_time_taken, 60)
-    if time_budget_ebe == hist_time_taken:
-        time_used = 'HistGradientBoosting'
-    elif time_budget_ebe == mlp_time_taken:
-        time_used = 'MLP'
-    else:
+    time_budget_ebe = max(hist_time_taken * BUDGET_FACTOR, 60)
+    if time_budget_ebe == 60:
         time_used = 'Minimum60s'
+    else:
+        time_used = 'HGB * Factor'
 
     print('Hist time', hist_time_taken)
     print('Assigned budget', time_budget_ebe)
@@ -193,7 +191,12 @@ def main(
 
     print("\n[SUMMARY]")
     print(f"Baseline val_acc={naml_best_val_acc:.4f} | test_acc={naml_max_test_acc:.4f}")
-    print(f"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}")
+    # Defensive printing — won’t crash if any are None
+    if ebe_val is None or ebe_test is None:
+        print(f"EBE val_acc={ebe_val} | test_acc={ebe_test} (missing metric)")
+    else:
+        print(f"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}")
+
     print(f"Beats val baseline? {ebe_beats_val} | Beats test baseline? {ebe_beats_test}")
 
     return ebe_summary
