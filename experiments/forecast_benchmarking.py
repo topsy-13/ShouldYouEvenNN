@@ -42,7 +42,7 @@ def run_forecast_only_benchmark(
     
     # 3) One pass to log early curves (no pruning, no scoring)
     print('Training all models')
-    n_repeats = 5  # as a start #minimal val points
+    n_repeats = 3  # as a start #minimal val points
     for i in range(n_repeats):
         print(f"[DEBUG] Re-training generation pass {i+1}/{n_repeats}")
         pop.train_generation(

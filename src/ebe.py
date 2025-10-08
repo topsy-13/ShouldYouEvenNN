@@ -8,6 +8,7 @@ import time
 import numpy as np
 import pandas as pd
 import torch
+import math
 
 # from baseline_models import get_models_and_baseline_metric
 from forecaster import forecast_generation
@@ -82,79 +83,93 @@ class Population:
 
 
         def train_one_candidate(candidate, train_loader, val_loader,
-                        num_epochs=1, val_frequency=1, measure_wall_time: bool = True):
+                        num_epochs=1, val_frequency=1, 
+                        measure_wall_time: bool = True,
+                        budget_time=None):
             """
-            Train a single candidate, logging metrics per batch directly into Candidate.metrics.
-            Validation is mandatory and runs every `val_frequency` batches.
-            Returns total epoch time (sum of batch times).
+            Train a single candidate with optional wall-time budget.
+            Logs all metrics safely even if budget ends mid-epoch.
             """
+            import time, torch
+
             model = candidate.model
             model.train()
             epoch_time_acc = 0.0
             total_batches = 0
+            start_global = time.time()
 
-            for epoch in range(num_epochs):
-                n_batches_epoch = 0
-                for features, labels in train_loader: # one batch
-                    start = time.time() if measure_wall_time else None
+            try:
+                for epoch in range(num_epochs):
+                    n_batches_epoch = 0
+                    for features, labels in train_loader:
+                        # --- Budget check ---
+                        if budget_time is not None and (time.time() - start_global) >= budget_time:
+                            print(f"[Budget] Training stopped after {time.time() - start_global:.1f}s (limit {budget_time}s).")
+                            raise TimeoutError  # triggers safe exit
 
-                    # forward + backward
-                    features, labels = features.to(model.device), labels.to(model.device)
-                    if features.dim() > 2:
-                        features = features.view(features.size(0), -1)
+                        start = time.time() if measure_wall_time else None
 
-                    model.optimizer.zero_grad()
-                    outputs = model(features)
-                    loss = model.criterion(outputs, labels)
-                    loss.backward()
-                    model.optimizer.step()
+                        # forward + backward
+                        features, labels = features.to(model.device), labels.to(model.device)
+                        if features.dim() > 2:
+                            features = features.view(features.size(0), -1)
 
-                    batch_time = time.time() - start
-                    epoch_time_acc += batch_time
-                    total_batches += 1
+                        model.optimizer.zero_grad()
+                        outputs = model(features)
+                        loss = model.criterion(outputs, labels)
+                        loss.backward()
+                        model.optimizer.step()
 
-                    with torch.no_grad():
-                        _, predicted = torch.max(outputs, 1)
-                        train_acc = (predicted == labels).float().mean().item()
+                        batch_time = time.time() - start if start is not None else 0.0
+                        epoch_time_acc += batch_time
+                        total_batches += 1
 
-                    # log train metrics
-                    candidate.log_metric("train", "loss", loss.item())
-                    candidate.log_metric("train", "acc", train_acc)
-                    batch_wall = (time.time() - start) if measure_wall_time else None
-                    candidate.log_effort(batch_wall_time=batch_wall)
-                    
-                    n_batches_epoch += 1
-
-                    # validation (always required)
-                    if total_batches % val_frequency == 0:
-                        model.eval()
-                        correct, total, val_loss_sum = 0, 0, 0.0
                         with torch.no_grad():
-                            for v_features, v_labels in val_loader:
-                                v_features, v_labels = v_features.to(model.device), v_labels.to(model.device)
-                                if v_features.dim() > 2:
-                                    v_features = v_features.view(v_features.size(0), -1)
+                            _, predicted = torch.max(outputs, 1)
+                            train_acc = (predicted == labels).float().mean().item()
 
-                                v_outputs = model(v_features)
-                                v_loss = model.criterion(v_outputs, v_labels)
-                                val_loss_sum += v_loss.item() * v_features.size(0)
+                        # log train metrics
+                        candidate.log_metric("train", "loss", loss.item())
+                        candidate.log_metric("train", "acc", train_acc)
+                        candidate.log_effort(batch_wall_time=batch_time)
+                        n_batches_epoch += 1
 
-                                _, v_pred = torch.max(v_outputs, 1)
-                                correct += (v_pred == v_labels).sum().item()
-                                total += v_labels.size(0)
+                        # validation
+                        if total_batches % val_frequency == 0:
+                            model.eval()
+                            correct, total, val_loss_sum = 0, 0, 0.0
+                            with torch.no_grad():
+                                for v_features, v_labels in val_loader:
+                                    v_features, v_labels = v_features.to(model.device), v_labels.to(model.device)
+                                    if v_features.dim() > 2:
+                                        v_features = v_features.view(v_features.size(0), -1)
+                                    v_outputs = model(v_features)
+                                    v_loss = model.criterion(v_outputs, v_labels)
+                                    val_loss_sum += v_loss.item() * v_features.size(0)
+                                    _, v_pred = torch.max(v_outputs, 1)
+                                    correct += (v_pred == v_labels).sum().item()
+                                    total += v_labels.size(0)
+                            val_acc = correct / total
+                            val_loss = val_loss_sum / total
+                            candidate.log_metric("val", "loss", val_loss)
+                            candidate.log_metric("val", "acc", val_acc)
+                            model.train()
 
-                        val_acc = correct / total
-                        val_loss = val_loss_sum / total
-                        candidate.log_metric("val", "loss", val_loss)
-                        candidate.log_metric("val", "acc", val_acc)
-                        model.train()
-                        
+                    candidate.metrics.setdefault("epoch_batches", [])
+                    candidate.metrics["epoch_batches"].append(n_batches_epoch)
 
-            # store epoch batches
-            candidate.metrics.setdefault("epoch_batches", [])
-            candidate.metrics["epoch_batches"].append(n_batches_epoch)
+            except TimeoutError:
+                pass  # graceful exit on time exhaustion
+            except Exception as e:
+                print(f"[Train] Exception during training: {e}")
 
-            return n_batches_epoch
+            # --- Always log elapsed time safely ---
+            total_time = time.time() - start_global
+            candidate.metrics.setdefault("epoch_time", []).append(total_time)
+            # candidate.metrics["total_train_time"] = total_time
+
+            return total_batches
+
 
         """Train all candidates in the population."""
         start_time = time.time()
@@ -196,10 +211,17 @@ class Population:
                         generator=self.repro.torch_gen,
                         seed_worker=self.repro.seed_worker
                     )
+                if time_budget is not None:
+                    remaining_time = time_budget - (time.time() - start_time)
+                    if remaining_time <= 0.0:
+                        print(f"[Train] Budget exhausted before candidate {i}.")
+                        break
+                else:
+                    remaining_time=None
 
                 epoch_batches = train_one_candidate(
                     candidate, train_loader, val_loader,
-                    num_epochs=1, val_frequency=1
+                    num_epochs=1, val_frequency=1, budget_time=remaining_time
                 )
                 candidate.metrics.setdefault("epoch_batches", [])
                 candidate.metrics["epoch_batches"].append(epoch_batches)
@@ -260,19 +282,24 @@ class Population:
 
 
     def prune_candidates(self,
-                    baseline_metric,
-                    base_drop=0.1,
-                    max_drop=0.3,
-                    elite_fraction=0.2,
-                    incubator_fraction=0.1,
-                    min_survivors=5,
-                    min_batches_protected=5):
+                        baseline_metric,
+                        base_drop=0.15,
+                        max_drop=0.4,
+                        elite_fraction=0.15,
+                        incubator_fraction=0.05,
+                        min_survivors=5,
+                        min_batches_protected=2,
+                        stagnation_delta=0.005,
+                        stagnation_window=4):
         """
-        Softer unified pruning with per-candidate protection.
-        - Any candidate with < min_batches_protected is fully shielded.
-        - Convex LB + probability drop only apply to candidates with enough training.
-        - Larger elite and incubator buffers give more safety.
+        Unified pruning with smarter heuristics:
+        • Protects only newborn candidates (< min_batches_protected)
+        • Removes hopeless (convex-LB) and stagnated candidates
+        • Keeps elites (best val_acc) and low-probability incubators
+        • Applies generation-dependent drop rate for survivors
         """
+
+        import numpy as np
 
         n = len(self.candidates)
         if n <= min_survivors:
@@ -283,37 +310,43 @@ class Population:
         b_ref = max(c.n_instances[-1] for c in self.candidates.values())
 
         hopeless, survivors, protected = [], [], []
+
         for k, cand in self.candidates.items():
+            # --- 1. Newborn protection ---
             if cand.batches_trained < min_batches_protected:
-                # hard shield: too few batches, cannot be dropped
                 protected.append(k)
                 continue
 
-            # --- NEW CI PROTECTION ---
-            ci_high = cand.metrics.get("forecast_CI_high", cand.metrics.get("forecasted_val_acc", 0.0))
-            if ci_high >= baseline_metric:
-                # even if forecast mean is weak, upper CI says it *might* win → protect
-                protected.append(k)
-                continue
-
-            # --- hopeless check (convex LB discard) ---
-            if  convex_lb_discard(cand, baseline_metric, b_ref):
+            # --- 2. Hopeless via convex-LB discard ---
+            if convex_lb_discard(cand, baseline_metric, b_ref):
                 hopeless.append(k)
-            else:
-                survivors.append(k)
+                cand.metrics["hopeless"] = True
+                continue
 
+            # --- 3. Stagnation detection ---
+            val_accs = cand.get_metric("val", "acc")
+            if isinstance(val_accs, list) and len(val_accs) >= stagnation_window:
+                tail = np.array(val_accs[-stagnation_window:], float)
+                delta = max(tail) - min(tail)
+                if delta < stagnation_delta:  # little to no movement
+                    hopeless.append(k)
+                    cand.metrics["stagnated"] = True
+                    continue
 
-        # If no candidate has enough anchors, skip pruning entirely
+            # --- survivor if none of the above ---
+            survivors.append(k)
+
+        # if nothing left to prune
         if not survivors:
             self.worst_individuals = []
             print(f"[Prune] Skipped: all candidates protected or under-trained.")
             return
 
-        # Drop fraction
+        # --- 4. Compute adaptive drop fraction ---
         frac = min(max_drop, base_drop + 0.01 * self.generations_completed)
         n_drop = int(len(survivors) * frac)
 
-        # Rank by adjusted probability (boost by training effort)
+        # --- 5. Rank by probability-weighted effort ---
         ranked_by_prob = sorted(
             [
                 (
@@ -327,7 +360,7 @@ class Population:
             reverse=True
         )
 
-        # Elite buffer
+        # --- 6. Elite buffer (top val_acc) ---
         elite_count = max(1, int(elite_fraction * n))
         elites = {
             k for k, c in sorted(
@@ -337,24 +370,25 @@ class Population:
             )[:elite_count]
         }
 
-        # Incubator buffer
+        # --- 7. Incubator buffer (bottom prob) ---
         incubator_count = max(1, int(incubator_fraction * n))
         incubators = {k for k, _ in ranked_by_prob[-incubator_count:]}
 
-        # Survivors by prob
+        # --- 8. Survivors by probability ---
         n_keep = max(min_survivors, len(survivors) - n_drop)
         keep_prob = {k for k, _ in ranked_by_prob[:n_keep]}
 
-        # Combine everything
+        # --- 9. Combine all safe groups ---
         keep = keep_prob | elites | incubators | set(protected)
         worst = [k for k in self.candidates if k not in keep] + hopeless
         worst = list(set(worst))
 
         self.worst_individuals = worst
 
-        print(f"[Prune] total={n}, protected={len(protected)}, hopeless={len(hopeless)}, "
-            f"dropped={len(worst)}, kept={n - len(worst)}")
-
+        print(
+            f"[Prune] total={n}, protected={len(protected)}, hopeless={len(hopeless)}, "
+            f"dropped={len(worst)}, kept={n - len(worst)}"
+        )
 
     def drop_worst_individuals(self):
         # Move all worst models to CPU first
@@ -378,8 +412,8 @@ class Population:
     def run_generation(self,
                     X_train, y_train, X_val, y_val,
                     baseline_metric,
-                    base_drop=0.2,
-                    max_drop=0.5,
+                    base_drop=0.1,
+                    max_drop=0.4,
                     track_all_models=False,
                     time_budget=None):
         """
@@ -426,21 +460,13 @@ class Population:
                             extra_full_passes=5)
         check_higher_than_baseline(self.candidates, baseline_metric)
 
-        dynamic_goal = max(
-            baseline_metric or 0.0,
-            max((c.get_metric("val", "acc", last_only=True) or 0.0)
-                for c in self.candidates.values()),
-            max((c.metrics.get("forecasted_val_acc", 0.0) or 0.0)
-                for c in self.candidates.values())
-        )
-
-        compute_and_log_p_above_goal(self.candidates, goal_metric=dynamic_goal)
+        compute_and_log_p_above_goal(self.candidates, goal_metric=baseline_metric)
         score_individuals(self.candidates)
 
         # === PHASE 3: Pruning ===
         survivors_before = len(self.candidates)
         self.prune_candidates(
-            baseline_metric=dynamic_goal,
+            baseline_metric=baseline_metric,
             base_drop=base_drop,
             max_drop=max_drop,
             elite_fraction=0.1,
@@ -546,7 +572,8 @@ class Population:
     def run_ebe(self,
             X_train, y_train, X_val, y_val,
             baseline_metric,
-            max_generations=20,
+            mlp_time,
+            max_generations=200,
             time_budget=60,
             base_drop=0.1,
             max_drop=0.5,
@@ -589,8 +616,17 @@ class Population:
             self.generations_completed += 1
 
             # decision check after each generation
-            self.decision, self.eu, self.p, self.benefit, self.cost = \
-                self.worth_training_neural_bayes(baseline_metric=baseline_metric)
+            res = self.worth_training_neural_bayes(baseline_metric=baseline_metric)
+
+            self.decision = res["ShouldYouEvenNN?"]
+            self.eu       = res["Exp. Utility"]
+            self.p        = res["p_above_goal"]
+            self.benefit  = res["benefit"]
+            self.cost     = res["cost"]
+            self.evidence_weight = res.get("evidence_weight", 1.0)
+
+            print(res)
+            # print('Benefit:', self.benefit)
 
             if self.decision:
                 print(f"[EBE] At gen {gen+1}, decision flipped: Worth training NN")
@@ -611,7 +647,8 @@ class Population:
                 X_val=X_val, y_val=y_val,
                 baseline_metric=baseline_metric,
                 time_budget=time_budget,
-                start_time=start_time
+                start_time=start_time,
+                mlp_time=mlp_time
             )
         elif not triggered:
             print("[EBE] No evidence found that NN is worth training. Skipping extension.")
@@ -654,28 +691,54 @@ class Population:
             return json.dumps(current_candidates, indent=4)
 
 
-    def worth_training_neural_bayes(self, baseline_metric, cost_scale=1.0, tol=0.0):
-        best_cand = max(self.candidates.values(), key=lambda c: c.metrics.get("p_above_goal", 0.0))
+    def worth_training_neural_bayes(
+        self,
+        baseline_metric,
+        cost_scale: float = 0.05,
+        tol: float = 0.0,
+        evidence_smooth: float = 8.0,
+        evidence_min: float = 0.2,
+        cost_smooth: float = 150.0,
+    ):
+        """
+        Expected utility with light cost compression for long forecast horizons.
+        Prevents large future horizons (e.g. 400 batches) from overpowering benefit.
+        """
+        import numpy as np
 
-        p    = best_cand.metrics.get("p_above_goal", 0.0)
+        best_cand = max(
+            self.candidates.values(),
+            key=lambda c: c.metrics.get("p_above_goal", 0.0)
+        )
+
+        p = best_cand.metrics.get("p_above_goal", 0.0)
         fcst = best_cand.metrics.get("forecasted_val_acc", 0.0)
-        benefit = max(0.02, fcst - baseline_metric)
+        benefit = fcst - baseline_metric
 
-        # effort-based horizon
-        e_future = best_cand.metrics.get("forecast_horizon_time") or 0.0   # effort units now
-        e_spent  = best_cand.cumulative_effort[-1] if getattr(best_cand, "cumulative_effort", None) else 0.0
+        e_future = best_cand.metrics.get("forecast_horizon_time") or 0.0
+        e_spent = getattr(best_cand, "batches_trained", 0) or 0.0
         projected_remaining_effort = max(0.0, e_future - e_spent)
 
-        # normalized cost proxy in [0,1)
-        norm_cost = projected_remaining_effort / (projected_remaining_effort + 1.0)
+        # --- Cost compression ---
+        # smooths growth so 400 batches doesn't kill EU immediately
+        norm_cost = 1 - np.exp(-projected_remaining_effort / cost_smooth)
 
-        gen = getattr(self, "generations_completed", 0)
-        exploration_weight = max(0.3, 1.0 - 0.01 * gen)
+        # --- Evidence ramp ---
+        w = 1 - np.exp(-e_spent / evidence_smooth)
+        w = evidence_min + (1 - evidence_min) * w
 
-        EU = (p * benefit * exploration_weight) - (1 - p) * 0.05 - cost_scale * 0.1 * norm_cost
-        return EU > tol, EU, p, benefit, projected_remaining_effort
+        # --- Expected Utility ---
+        EU = w * (p * benefit) - cost_scale * norm_cost
 
-
+        return {
+            "ShouldYouEvenNN?": EU > tol,
+            "Exp. Utility": EU,
+            "p_above_goal": p,
+            "benefit": benefit,
+            "cost": projected_remaining_effort,
+            "norm_cost": norm_cost,
+            "evidence_weight": w,
+        }
 
     
     def final_decision(self):
@@ -779,7 +842,7 @@ class Population:
 
     def extend_selected_candidate(self, best_cand,
                               X_train, y_train, X_val, y_val,
-                              baseline_metric, time_budget, start_time):
+                              baseline_metric, time_budget, start_time, mlp_time):
         """
         Post-EBE extended training phase.
         Runs one continuous early-stopping session with the remaining global time.
@@ -805,7 +868,7 @@ class Population:
         self.extension_log = []
         ext_start = time.time()
         elapsed_global = time.time() - start_time
-        remaining_time = max(time_budget - elapsed_global, 10.0)
+        remaining_time = max(time_budget - elapsed_global, 30.0, mlp_time)
 
         print(f"[Extension] Launching ES training (remaining {remaining_time:.1f}s)")
 

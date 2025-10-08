@@ -24,8 +24,8 @@ def main(dataset_name, data_id, seed):
         'data_id': data_id,
         'seed': seed,
     }
-    with open(f'{exp_path}_results.json', 'w') as f:
-        json.dump(results_dict, f, indent=4)        
+    # with open(f'{exp_path}_results.json', 'w') as f:
+    #     json.dump(results_dict, f, indent=4)        
 
     print(f'\n ** Starting Experiment for {dataset_name} | {data_id}')
     # print(f'Experiment ID: {exp_id}')
@@ -80,7 +80,7 @@ def main(dataset_name, data_id, seed):
                         X_val, y_val,
                         X_test, y_test,
                         pop_size=30, 
-                        starting_instances_proportion=0.05,
+                        starting_instances_proportion=0.2,
                         time_budget_factor=3)
     # results_dict.update(ebe_results)
     # with open(f'{exp_path}_results.json', 'w') as f:
@@ -129,4 +129,4 @@ if __name__ == "__main__":
 
     # main(dataset_name='Vehicle', data_id=54, seed=SEED)
     print('There is hope')
-    # os.system("shutdown /s /t 15")
+    os.system("shutdown /s /t 60")

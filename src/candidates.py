@@ -171,7 +171,7 @@ class Candidate:
 
 
 
-    def next_anchor(self, growth=1.4, max_cap=None):
+    def next_anchor(self, growth=1.6, max_cap=None):
         """
         Calculate the next anchor point based on the previous number of instances.
 

@@ -36,7 +36,7 @@ def main(
          X_train, y_train, X_val, y_val, 
          X_test, y_test,
          pop_size=25, 
-         starting_instances_proportion=0.1,
+         starting_instances_proportion=0.2,
          time_budget_factor=3):
     
     # === Scenario setup ===
@@ -46,8 +46,8 @@ def main(
     POP_SIZE = pop_size
     BUDGET_FACTOR = time_budget_factor
     MAX_GENS = 200
-    BASE_DROP = 0.2
-    MAX_DROP = 0.3
+    BASE_DROP = 0.1
+    MAX_DROP = 0.5
 
     init_global_seed(seed)
     repro = make_repro_context(seed)
@@ -73,7 +73,7 @@ def main(
     else:
         time_used = 'HGB * Factor'
 
-    print('Hist time', hist_time_taken)
+    print('Hist time', hist_time_taken) 
     print('Assigned budget', time_budget_ebe)
 
     # === Run EBE process ===
@@ -81,6 +81,7 @@ def main(
         X_train=X_train, y_train=y_train,
         X_val=X_val, y_val=y_val,
         baseline_metric=float(naml_best_val_acc),
+        mlp_time=mlp_time_taken,
         max_generations=MAX_GENS,
         time_budget=time_budget_ebe,
         base_drop=BASE_DROP,
@@ -162,7 +163,7 @@ def main(
         "ebe_budget_efficiency": float(ebe_time_taken / time_budget_ebe) if time_budget_ebe else None,
 
         # --- Evolutionary Decision Summary ---
-        "ebe_generations_completed": int(getattr(pop, "generations_completed", 0)),
+        "ebe_generations_completed": int(getattr(pop, "generations_ completed", 0)),
         "ebe_decision": bool(decision),
         "ebe_expected_utility": float(EU),
         "ebe_p_above_goal": float(p),
@@ -205,7 +206,7 @@ def main(
 if __name__ == "__main__":
     # Load Data
     X_train, y_train, X_val, y_val, X_test, y_test = dp.get_preprocessed_data(
-            dataset_id=41147,
+            dataset_id=54,
             scaling=True,
             random_seed=13,
             return_as='tensor',
@@ -213,11 +214,11 @@ if __name__ == "__main__":
             categorical_strategy='label', 
             verbose=True
         )
-    main(data_id=41147, seed=13, 
+    main(data_id=54, seed=13, 
          X_train=X_train, y_train=y_train, 
          X_val=X_val, y_val=y_val, 
          X_test=X_test, y_test=y_test,
-         pop_size=25, 
+         pop_size=50, 
          starting_instances_proportion=0.3,
          time_budget_factor=3)
 
