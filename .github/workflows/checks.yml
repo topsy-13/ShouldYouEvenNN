@@ -1,0 +1,31 @@
+name: Research foundation checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install package and development tools
+        run: python -m pip install ".[dev]"
+      - name: Verify installed imports and package isolation
+        run: python -m pytest
+      - name: Lint active code
+        run: python -m ruff check .
+      - name: Check active formatting
+        run: python -m ruff format --check .

@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools==75.6.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shouldyouevennn"
+version = "0.1.0"
+description = "Research foundation for neural training continuation decisions"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.5",
+    "ruff==0.11.13",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = false
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["shouldyouevennn", "shouldyouevennn.*"]
+namespaces = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--import-mode=importlib --strict-config --strict-markers"
+norecursedirs = ["archive", "data", "artifacts", ".venv", "build", "dist"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+include = ["src/**/*.py", "tests/**/*.py", "pyproject.toml"]
+extend-exclude = ["archive", "data", "artifacts", "notebooks", "build", "dist"]
+force-exclude = true
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
