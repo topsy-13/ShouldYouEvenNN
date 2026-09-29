@@ -2,6 +2,9 @@
 
 Status: design outline, not an implemented or preregistered experiment.
 
+The [first pilot design](pilot-study.md) turns this outline into a proposed
+development study, with an explicit parameter ledger and execution order.
+
 ## Question and hypothesis
 
 Given a particular neural candidate's early training history, a specified classical

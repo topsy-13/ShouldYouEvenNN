@@ -18,6 +18,27 @@ python -m pip install --use-feature=truststore -e ".[dev]"
 
 Use this variant if the same certificate-chain error occurs with pip 24.0.
 
+## Local GPU research environment
+
+For the pilot, create the separate NVIDIA environment from the repository root:
+
+```sh
+conda env create --file environment.yml
+conda activate shouldyouevennn-research
+python -m pip install -e ".[dev]"
+```
+
+The [environment specification](../environment.yml) pins the scientific versions
+selected for this PC, including PyTorch 2.12's CUDA 13.0 build, plus development tools.
+It targets Windows/Linux with a compatible NVIDIA driver. The package itself
+remains free of scientific runtime dependencies until research modules need them;
+the smaller `.venv` and CI setup remain usable for foundation checks.
+
+This file specifies direct dependencies, not every transitive package or Conda
+build. Capture the resolved environment and Git revision with each experiment.
+Existing environments are not modified by creating this one. Consult the
+[local assessment](local-environment.md) for hardware and verification results.
+
 ## Checks
 
 ```sh

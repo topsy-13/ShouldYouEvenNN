@@ -10,6 +10,9 @@ The active package currently contains no training, forecasting, or decision
 implementation. The thesis prototype and its results are historical, exploratory
 material; their limitations are documented in [the archive](archive/README.md).
 
+For local GPU research, use the pinned [Conda environment](environment.yml) and
+the [research environment setup](docs/development.md#local-gpu-research-environment).
+
 ## Quick start
 
 Use Python 3.11 or newer and a fresh virtual environment. From the repository root:

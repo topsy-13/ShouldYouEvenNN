@@ -1,0 +1,22 @@
+# Local NVIDIA research environment; Python and direct dependencies are pinned.
+# Uses the inspected scientific stack with PyTorch 2.12 / CUDA 13.0.
+# Direct pins, not a transitive lock. Targets NVIDIA Windows/Linux, not macOS.
+name: shouldyouevennn-research
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.11.11
+  - pip=24.3.1
+  - pip:
+      - --extra-index-url https://download.pytorch.org/whl/cu130
+      - setuptools==75.6.0
+      - torch==2.12.0+cu130
+      - numpy==1.26.4
+      - scipy==1.14.1
+      - pandas==2.2.3
+      - scikit-learn==1.5.2
+      - openml==0.15.0
+      - matplotlib==3.9.3
+      - pytest==8.3.5
+      - ruff==0.11.13

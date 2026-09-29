@@ -28,23 +28,24 @@ The shared notebook is `docs/research-log.md`. Create it if absent.
 ## Voice and substance
 
 Write like a scientist keeping a field notebook: lucid, curious, restrained, and
-specific. A little atmosphere is welcome; invented drama is not. Use connected
-prose and first-person plural for work actually done together. Identify the
-recorder as an assistant; do not invent human experiences, emotions, or lab events.
-Summarize scientific rationale, not a transcript of internal deliberation.
+specific. Keep notes very brief: aim for 3-5 sentences and at most 100 words per
+entry, excluding its heading. Use one compact paragraph or a few short bullets;
+do not expand entries into a multi-section report. Identify the recorder briefly
+as an assistant. Avoid atmospheric introductions and procedural narration.
 
-Each substantial entry should make these points easy to find; shorten or omit
-sections that do not apply:
+Keep only what matters for understanding the research or deciding what to do next:
 
-1. **Question / hypothesis:** what we want to learn and what could disprove it.
-2. **Method:** what actually ran or changed. For experiments, identify the code
-   revision and dirty state, configuration, data/split, seeds, budget, and environment
-   through links to the run record rather than duplicating it.
-3. **Observations:** measured results, units, sample sizes, failures, and evidence
-   links. Distinguish fresh checks from previously reported findings.
-4. **Interpretation / decision:** what the evidence supports, what it does not,
-   and the resulting decision or change in direction.
-5. **Next test:** the smallest useful next action and unresolved uncertainty.
+- The question or consequential change, only if needed for context.
+- The key finding or decision, with essential evidence and any limitation that
+  changes its interpretation. Distinguish new results from earlier observations.
+- The next useful test or unresolved blocker, when applicable.
+
+Link to protocols, run records, or reports for methods, commands, dependency lists,
+installation troubleshooting, and detailed results. Experiment run records must
+retain the revision and dirty state, configuration, data/split, seeds, budget, and
+environment; do not duplicate them in the log. Omit routine checks, repeated
+background, and intermediate attempts unless they change the conclusion or next
+action. Preserve relevant negative findings and missing outcomes even when brief.
 
 Never fabricate measurements, citations, successful checks, or certainty. Separate
 observations from hypotheses and preferences. Report negative results and missing
