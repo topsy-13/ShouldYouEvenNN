@@ -1,0 +1,9 @@
+{
+    "43072": {
+        "dataset_name": "KDDCup09-Upselling",
+        "error_type": "ValueError",
+        "error_message": "Columns must be same length as key",
+        "timestamp": "2025-10-09 11:40:35",
+        "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 110, in <module>\n    main(dataset_name=dataset_name, data_id=data_id, seed=SEED)\n  File \"c:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\experiments\\experiment_pipeline.py\", line 34, in main\n    X_train, y_train, X_val, y_val, X_test, y_test = dp.get_preprocessed_data(\n                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\src\\data_preprocessing.py\", line 218, in get_preprocessed_data\n    X_train, X_val, X_test = impute_features(\n                             ^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\user\\OneDrive - Universidad de la Sabana\\Documents\\GitHub\\ShouldYouEvenNN\\src\\data_preprocessing.py\", line 180, in impute_features\n    X_train[num_cols] = num_imputer.fit_transform(X_train[num_cols])\n    ~~~~~~~^^^^^^^^^^\n  File \"C:\\Users\\user\\anaconda3\\envs\\AutoML\\Lib\\site-packages\\pandas\\core\\frame.py\", line 4299, in __setitem__\n    self._setitem_array(key, value)\n  File \"C:\\Users\\user\\anaconda3\\envs\\AutoML\\Lib\\site-packages\\pandas\\core\\frame.py\", line 4350, in _setitem_array\n    self._iset_not_inplace(key, value)\n  File \"C:\\Users\\user\\anaconda3\\envs\\AutoML\\Lib\\site-packages\\pandas\\core\\frame.py\", line 4377, in _iset_not_inplace\n    raise ValueError(\"Columns must be same length as key\")\nValueError: Columns must be same length as key\n"
+    }
+}

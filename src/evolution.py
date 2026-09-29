@@ -49,7 +49,7 @@ def crossover(parent1, parent2, rng: np.random.Generator = None):
     return child
 
 
-def mutate_architecture(architecture, mutation_rate=0.3, 
+def mutate_architecture(architecture, mutation_rate=0.2, 
                         rng: np.random.Generator = None):
     rng = rng or np.random.default_rng()
     mutated = dict(architecture)

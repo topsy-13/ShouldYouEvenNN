@@ -72,7 +72,7 @@ def compute_p_above_goal(
 ) -> float:
     """Blend sigmoid and Monte Carlo probabilities for robustness."""
 
-    forecast = candidate.metrics.get("forecasted_val_acc", 0.0)
+    fcst = candidate.metrics.get("forecasted_val_acc", 0.0)
     slope = candidate.metrics.get("slope_val_acc", 0.0)
     var = candidate.metrics.get("var_val_acc", 0.02)
 
@@ -135,111 +135,32 @@ def score_individuals(candidates):
 
 
 
-# def get_worst_individuals(population, baseline_metric,
-#                           percentile_drop=15):
-#     """
-#     Drop the worst individuals based on p_above_goal.
-#     Always preserve elites (top 10% by last_val_acc).
-#     """
-#     n_worst = max(1, int(population.size * percentile_drop / 100))
-#     elite_count = max(1, int(0.1 * population.size))
-
-#     # Gather candidates
-#     candidates = []
-#     for key, cand in population.candidates.items():
-#         val_acc = cand.get_metric('val', 'acc', last_only=True) or 0.0
-#         prob = cand.metrics.get("p_above_goal", 0.0)
-#         candidates.append((key, val_acc, prob))
-
-#     # Sort by probability ascending (lowest chance of beating baseline = worst)
-#     sorted_by_prob = sorted(candidates, key=lambda x: x[2])
-
-#     # Identify elites: top 10% by validation accuracy
-#     elites = {
-#         k for k, v, p in sorted(candidates, key=lambda x: x[1], reverse=True)[:elite_count]
-#     }
-
-#     # Collect worst individuals, skipping elites
-#     worst = []
-#     for k, v, p in sorted_by_prob:
-#         if k not in elites and len(worst) < n_worst:
-#             worst.append(k)
-
-#     population.worst_individuals = worst
-
-# def get_worst_individuals_hybrid(population,
-#                                  base_drop=0.2,
-#                                  max_drop=0.5):
-#     """
-#     Hybrid pruning for limited-time NAS with convex LB discard already active.
-
-#     Steps:
-#     1. Sort candidates by probability of beating baseline (descending).
-#     2. Drop a percentile of the worst (percent grows with generations).
-#     3. Always keep a small elite buffer by val_acc.
-#     4. Let population shrink naturally — do not auto-respawn full size.
-#     """
-
-#     n = len(population.candidates)
-#     if n <= 1:
-#         population.worst_individuals = []
-#         return
-
-#     # --- adaptive drop fraction ---
-#     # early gens: gentler, later gens: harsher
-#     frac = min(max_drop, base_drop + 0.02 * population.generations_completed)
-#     n_drop = max(1, int(n * frac))
-
-#     # --- rank by prob ---
-#     ranked = sorted(
-#         population.candidates.items(),
-#         key=lambda kv: kv[1].metrics.get("p_above_goal", 0.0),
-#         reverse=True
-#     )
-
-#     # --- elite buffer (top 10% by val_acc) ---
-#     elite_count = max(1, int(0.1 * n))
-#     elites = {
-#         k for k, c in sorted(
-#             population.candidates.items(),
-#             key=lambda kv: kv[1].get_metric("val", "acc", last_only=True) or 0.0,
-#             reverse=True
-#         )[:elite_count]
-#     }
-
-#     # survivors = top (n - n_drop) + elites
-#     survivors = {k for k, _ in ranked[:n - n_drop]} | elites
-#     worst = [k for k, _ in ranked if k not in survivors]
-
-#     population.worst_individuals = worst
-
-#     print(f"[Hybrid] Candidates={n}, drop={len(worst)}, keep={len(survivors)}")
-
-
 def convex_lb_discard(candidate, goal, b_ref,
-                      min_points=5, margin=0.02):
+                      min_points=5, tail_points=3, margin=0.02):
     """
-    Softer convex LB discard using first and last val_acc points.
-    - Needs at least min_points anchors.
-    - Slope from very first to most recent accuracy, not just last 2.
-    - Requires CI_high also below goal before discarding.
+    Simplified convex lower-bound discard:
+    - Uses recent trend (last few validation points) to estimate slope.
+    - Discards if even an optimistic linear extrapolation to full budget
+      stays below the baseline goal by a margin.
     """
+    import numpy as np
 
     val_accs = candidate.get_metric("val", "acc")
     efforts = candidate.efforts
 
+    # Too few observations → can't decide yet
     if len(val_accs) < min_points or len(efforts) < min_points:
-        return False  # too early
+        return False
 
-    # first and last points
-    x1, x2 = efforts[0], efforts[-1]
-    y1, y2 = val_accs[0], val_accs[-1]
+    # Tail slope from last few points
+    tail_y = np.array(val_accs[-tail_points:], float)
+    tail_x = np.array(efforts[-tail_points:], float)
+    slope = np.mean(np.diff(tail_y) / (np.diff(tail_x) + 1e-8))
 
-    slope = (y2 - y1) / (x2 - x1 + 1e-8)
-    best_case = y2 + slope * (b_ref - x2)
+    # Extrapolate optimistically to the full reference budget
+    y_last, x_last = val_accs[-1], efforts[-1]
+    best_case = y_last + slope * (b_ref - x_last)
 
-    ci_high = candidate.metrics.get("forecast_CI_high",
-                                    candidate.metrics.get("forecasted_val_acc", y2))
-
-    hopeless = (best_case < (goal - margin)) and (ci_high < goal)
-    return hopeless
+    # Decide: if best-case is still below goal (with margin), discard
+    hopeless = best_case < (goal - margin)
+    return bool(hopeless)

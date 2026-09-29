@@ -1,64 +1,46 @@
-"""Utility helpers for deterministic experiments."""
-
-from __future__ import annotations
-
-import os
-import random
-from dataclasses import dataclass
-
+# utils.py
+import os, random
 import numpy as np
 import torch
+from dataclasses import dataclass
 
-__all__ = ["init_global_seed", "ReproContext", "make_repro_context"]
-
-
-def init_global_seed(base_seed: int = 13) -> None:
-    """Seed all major random number generators for reproducibility."""
-
+def init_global_seed(base_seed: int = 13):
+    # One-time, at program start
     random.seed(base_seed)
     os.environ["PYTHONHASHSEED"] = str(base_seed)
-
     np.random.seed(base_seed)
-
     torch.manual_seed(base_seed)
     torch.cuda.manual_seed_all(base_seed)
 
+    # Determinism knobs
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    if torch.__version__ >= "1.8":
-        torch.use_deterministic_algorithms(True, warn_only=True)
+    # Optional: make BLAS/tensor ops deterministic
+    # os.environ.setdefault("OMP_NUM_THREADS", "1")
+    # torch.set_num_threads(1)
 
-
-@dataclass(frozen=True)
+@dataclass
 class ReproContext:
-    """Container holding RNG objects that share a common seed."""
+    np_rng: np.random.Generator
+    torch_gen: torch.Generator
+    py_rng: random.Random  # for APIs that insist on python's random
+    def seed_worker(self, worker_id: int):
+        s = self.py_rng.seed() if False else self_seed + worker_id  # placeholder to keep signature
 
-    numpy_generator: np.random.Generator
-    torch_generator: torch.Generator
-    python_rng: random.Random
-    base_seed: int
+def make_repro_context(seed: int) -> ReproContext:
+    np_rng = np.random.default_rng(seed)
+    torch_gen = torch.Generator()
+    torch_gen.manual_seed(seed)
+    py_rng = random.Random(seed)
 
-    def worker_init_fn(self, worker_id: int) -> None:
-        """Seed NumPy/Python RNGs for a data-loading worker."""
-
-        worker_seed = self.base_seed + worker_id
+    def _seed_worker(worker_id):
+        # Seed per DataLoader worker deterministically
+        worker_seed = seed + worker_id
         np.random.seed(worker_seed)
         random.seed(worker_seed)
 
-def make_repro_context(seed: int) -> ReproContext:
-    """Create seeded RNGs for NumPy, PyTorch and Python's ``random``."""
-
-    numpy_generator = np.random.default_rng(seed)
-
-    torch_generator = torch.Generator()
-    torch_generator.manual_seed(seed)
-
-    python_rng = random.Random(seed)
-
-    return ReproContext(
-        numpy_generator=numpy_generator,
-        torch_generator=torch_generator,
-        python_rng=python_rng,
-        base_seed=seed,
-    )
+    ctx = ReproContext(np_rng=np_rng, torch_gen=torch_gen, py_rng=py_rng)
+    # attach the closure
+    ctx.seed_worker = _seed_worker
+    return ctx
