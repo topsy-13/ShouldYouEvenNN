@@ -36,7 +36,6 @@ def main(
          X_train, y_train, X_val, y_val, 
          X_test, y_test,
          pop_size=25, 
-         starting_instances_proportion=0.2,
          time_budget_factor=3):
     
     # === Scenario setup ===
@@ -59,7 +58,7 @@ def main(
     input_size, output_size = dp.get_tensor_sizes(X_train, y_train)
     s_space = search_space.SearchSpace(input_size=input_size, output_size=output_size)
 
-    starting_instances = int(starting_instances_proportion * len(X_train))
+    starting_instances = 3072
     ebe_start_time = time.time()
     pop = Population(s_space, 
                      size=POP_SIZE, 
@@ -77,7 +76,7 @@ def main(
     print('Assigned budget', time_budget_ebe)
 
     # === Run EBE process ===
-    pop.run_ebe(
+    best_cand, ebe_results = pop.run_ebe(
         X_train=X_train, y_train=y_train,
         X_val=X_val, y_val=y_val,
         baseline_metric=float(naml_best_val_acc),
@@ -88,28 +87,24 @@ def main(
         max_drop=MAX_DROP,
         track_all_models=False
     )
-    
+
     ebe_end_time = time.time()
     ebe_time_taken = ebe_end_time - ebe_start_time
-    final_decision = pop.final_decision()
-    print('Final Decision:', final_decision)
 
+    # --- Save ledgers ---
     ledger = pop.current_snapshot.copy()
     ledger.to_csv(os.path.join(out, f"csvs/{exp_id}-ledger.csv"), index=False)
     logs_df = pop.export_generation_logs(os.path.join(out, f"csvs/{exp_id}_generation_logs.csv"))
 
-    # === Evaluate final candidate after EBE ===
+    # === Evaluate the final candidate (if any) ===
     ebe_val = None
     ebe_test = None
     ebe_beats_val = False
     ebe_beats_test = False
 
-    if final_decision.get("ShouldYouEvenNN?", False):
-        # get best candidate after EBE
-        best_cand = max(pop.candidates.values(), key=lambda c: c.metrics.get("forecasted_val_acc", 0.0))
+    if best_cand is not None:
         model = best_cand.model
 
-        # evaluate on validation set
         val_loader = dp.create_dataloader(
             X=X_val, y=y_val,
             batch_size=best_cand.batch_size,
@@ -118,10 +113,9 @@ def main(
             shuffle=False
         )
         val_loss, val_acc = model.evaluate(val_loader)
-        ebe_val = val_acc
+        ebe_val = float(val_acc)
         ebe_beats_val = bool(val_acc >= float(naml_best_val_acc))
 
-        # evaluate on test set
         test_loader = dp.create_dataloader(
             X=X_test, y=y_test,
             batch_size=best_cand.batch_size,
@@ -130,16 +124,16 @@ def main(
             shuffle=False
         )
         test_loss, test_acc = model.evaluate(test_loader)
-        ebe_test = test_acc
+        ebe_test = float(test_acc)
         ebe_beats_test = bool(test_acc >= float(naml_max_test_acc))
 
-        print(f"[Evaluation] val_acc={val_acc:.4f} | test_acc={test_acc:.4f}")
-        print(f"[Evaluation] Beats val baseline? {ebe_beats_val} | Beats test baseline? {ebe_beats_test}")
+        # print(f"[Evaluation] val_acc={val_acc:.4f} | test_acc={test_acc:.4f}")
+        # print(f"[Evaluation] Beats val baseline? {ebe_beats_val} | Beats test baseline? {ebe_beats_test}")
     else:
         print("[EBE] No NN selected for evaluation.")
 
-    # === Build summary ===
-    decision = getattr(pop, "decision", False)
+    # === Build experiment summary ===
+    decision = bool(getattr(pop, "decision", False))
     EU = float(getattr(pop, "eu", 0.0))
     p = float(getattr(pop, "p", 0.0))
     top_fcst = float(ledger["forecasted_val_acc"].max()) if not ledger.empty else 0.0
@@ -163,10 +157,10 @@ def main(
         "ebe_budget_efficiency": float(ebe_time_taken / time_budget_ebe) if time_budget_ebe else None,
 
         # --- Evolutionary Decision Summary ---
-        "ebe_generations_completed": int(getattr(pop, "generations_ completed", 0)),
-        "ebe_decision": bool(decision),
-        "ebe_expected_utility": float(EU),
-        "ebe_p_above_goal": float(p),
+        "ebe_generations_completed": int(getattr(pop, "generations_completed", 0)),
+        "ebe_decision": decision,
+        "ebe_expected_utility": EU,
+        "ebe_p_above_goal": p,
         "ebe_benefit_est": float(getattr(pop, "benefit", 0.0)),
         "ebe_cost_est": float(getattr(pop, "cost", 0.0)),
 
@@ -174,11 +168,19 @@ def main(
         "ebe_top_forecast_val_acc": float(top_fcst),
         "ebe_top_forecast_CI_high": float(top_fcst_ci_h) if top_fcst_ci_h is not None else None,
 
-        # --- Final Evaluation ---
-        "ebe_val_acc": float(ebe_val or 0.0),
-        "ebe_test_acc": float(ebe_test or 0.0),
-        "ebe_surpassed_val_baseline": bool(ebe_beats_val),
-        "ebe_surpassed_test_baseline": bool(ebe_beats_test),
+        # --- Final Model Evaluation ---
+        "ebe_final_phase": ebe_results.get("phase", None),
+        "ebe_val_acc": ebe_val or 0.0,
+        "ebe_test_acc": ebe_test or 0.0,
+        "ebe_surpassed_val_baseline": ebe_beats_val,
+        "ebe_surpassed_test_baseline": ebe_beats_test,
+
+        # --- Final Model Summary ---
+        "ebe_final_model_id": getattr(best_cand, "id", None) if best_cand else None,
+        "ebe_final_val_acc_internal": ebe_results.get("final_val_acc", None),
+        "ebe_final_loss_internal": ebe_results.get("final_val_loss", None),
+        "ebe_final_surpassed_baseline_internal": ebe_results.get("surpassed_baseline", None),
+        "ebe_total_elapsed_internal": ebe_results.get("total_elapsed", None),
 
         # --- Efficiency Metrics ---
         "ebe_time_vs_hist_ratio": float(ebe_time_taken / hist_time_taken) if hist_time_taken else None,
@@ -192,15 +194,15 @@ def main(
 
     print("\n[SUMMARY]")
     print(f"Baseline val_acc={naml_best_val_acc:.4f} | test_acc={naml_max_test_acc:.4f}")
-    # Defensive printing — won’t crash if any are None
+    print(f"EBE phase={ebe_results.get('phase', 'N/A')}")
     if ebe_val is None or ebe_test is None:
         print(f"EBE val_acc={ebe_val} | test_acc={ebe_test} (missing metric)")
     else:
         print(f"EBE val_acc={ebe_val:.4f} | test_acc={ebe_test:.4f}")
-
     print(f"Beats val baseline? {ebe_beats_val} | Beats test baseline? {ebe_beats_test}")
 
     return ebe_summary
+
 
 
 if __name__ == "__main__":
@@ -219,6 +221,5 @@ if __name__ == "__main__":
          X_val=X_val, y_val=y_val, 
          X_test=X_test, y_test=y_test,
          pop_size=50, 
-         starting_instances_proportion=0.3,
          time_budget_factor=3)
 

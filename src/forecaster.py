@@ -196,89 +196,80 @@ def project_future_time(candidate, dataset_size, extra_full_passes=50):
 
     return e_now + e_future
 
+import numpy as np
+from scipy.optimize import curve_fit
+from scipy.stats import t
 
 def forecast_with_ci_morphing(
     x_values,
     accuracies,
     max_x=None,
     alpha=0.05,
-    temp=0.9,
     debug=False,
 ):
     """
-    Morphing forecast that blends rational, sigmoid, and linear fits
-    based on local slope and curvature (shape-awareness).
-    Returns (forecast_mean, lower, upper).
+    Forecasts validation accuracy using an Inverse Power Law:
+        f(x) = a - b / (x + c)^d
 
-    Behaves like forecast_with_ci() but adapts shape depending on learning phase:
-    - rational: for fast growth
-    - sigmoid: for plateau transitions
-    - linear:  for stabilization or noise
+    Returns:
+        forecast_mean, lower_CI, upper_CI
+
+    Behavior:
+        - Handles short curves robustly.
+        - Provides asymptotic (limit) forecast 'a'.
+        - Computes confidence interval using residual variance.
     """
-
-    import numpy as np
-    from scipy.stats import t
 
     x = np.array(x_values, dtype=float)
     y = np.array(accuracies, dtype=float)
+    n = len(y)
 
-    if len(y) < 2:
-        last = float(y[-1]) if len(y) else 0.0
-        return last, last * 0.95, min(1.0, last * 1.05)
+    # Fallback for very short curves
+    if n < 2:
+        last = float(y[-1]) if n else 0.0
+        return last, max(0.0, last * 0.95), min(1.0, last * 1.05)
 
     if max_x is None:
         max_x = float(np.max(x))
 
-    # --- compute local dynamics ---
-    slope = np.gradient(y, x)
-    curvature = np.gradient(slope, x)
-    s_t, c_t = slope[-1], curvature[-1]
+    # Define inverse power law
+    def inv_power(x, a, b, c, d):
+        return a - b / np.power(x + c, d)
 
-    # --- call base forecasters ---
+    # Parameter bounds to keep things stable
+    bounds = (
+        [0.0, 0.0, 0.0, 0.1],   # lower bounds
+        [1.0, 1.0, 1e3, 10.0],  # upper bounds
+    )
+
+    # Initial guess: asymptote near last value, small b, gentle slope
+    p0 = [min(1.0, y[-1] + 0.05), 0.5, 1.0, 1.0]
+
     try:
-        fc_r, lo_r, hi_r = forecast_with_ci(x, y, max_x, model_type="rational")
-    except Exception:
-        fc_r, lo_r, hi_r = y[-1], y[-1], y[-1]
-    try:
-        fc_s, lo_s, hi_s = forecast_with_ci(x, y, max_x, model_type="sigmoid")
-    except Exception:
-        fc_s, lo_s, hi_s = y[-1], y[-1], y[-1]
-    try:
-        fc_l, lo_l, hi_l = forecast_with_ci(x, y, max_x, model_type="linear")
-    except Exception:
-        fc_l, lo_l, hi_l = y[-1], y[-1], y[-1]
+        popt, pcov = curve_fit(inv_power, x, y, p0=p0, bounds=bounds, maxfev=20000)
+        forecast = float(np.clip(inv_power(max_x, *popt), 0.0, 1.0))
+        y_pred = inv_power(x, *popt)
+        residuals = y - y_pred
+        std_err = np.std(residuals)
+    except Exception as e:
+        if debug:
+            print(f"[InversePowerForecast] Fallback linear used: {e}")
+        # fallback: naive extrapolation
+        slope = (y[-1] - y[-2]) / (x[-1] - x[-2] + 1e-8)
+        forecast = y[-1] + slope * (max_x - x[-1])
+        std_err = abs(slope) * 0.1
 
-    # --- morphing weights ---
-    wr = 1 / (1 + np.exp(-5 * abs(s_t))) * (1 - 1 / (1 + np.exp(-5 * abs(c_t))))
-    ws = 1 / (1 + np.exp(-3 * c_t))
-    wl = max(0.0, 1 - (wr + ws))
-    total = max(wr + ws + wl, 1e-8)
-    wr, ws, wl = wr / total, ws / total, wl / total
-
-    # --- morphing temperature (smoothness of transitions) ---
-    wr, ws, wl = np.power([wr, ws, wl], temp)
-    wr, ws, wl = wr / np.sum([wr, ws, wl]), ws / np.sum([wr, ws, wl]), wl / np.sum([wr, ws, wl])
-
-    # --- blended forecast ---
-    fc_mean = wr * fc_r + ws * fc_s + wl * fc_l
-    ci_low  = wr * lo_r + ws * lo_s + wl * lo_l
-    ci_high = wr * hi_r + ws * hi_s + wl * hi_l
-
-    # --- inflate CI if data scarce ---
-    n = len(y)
-    if n < 4:
-        ci_width = (ci_high - ci_low) * (6 / n)
-        ci_low, ci_high = fc_mean - ci_width / 2, fc_mean + ci_width / 2
-
-    # --- statistical adjustment ---
-    dof = max(1, len(y) - 1)
+    # Confidence interval
+    dof = max(1, n - 1)
     tval = t.ppf(1 - alpha / 2, dof)
-    noise = np.std(y - np.convolve(y, np.ones(min(3, len(y))) / min(3, len(y)), mode="same"))
-    ci_low = float(np.clip(ci_low - tval * noise, 0.0, 1.0))
-    ci_high = float(np.clip(ci_high + tval * noise, 0.0, 1.0))
-    fc_mean = float(np.clip(fc_mean, 0.0, 1.0))
+    ci = tval * (std_err + 1e-8)
+
+    lower = float(np.clip(forecast - ci, 0, 1))
+    upper = float(np.clip(forecast + ci, 0, 1))
 
     if debug:
-        print(f"[MORPH] slope={s_t:.4f}, curvature={c_t:.4f}, weights={{r:{wr:.2f}, s:{ws:.2f}, l:{wl:.2f}}}, forecast={fc_mean:.3f}")
+        print(f"[InversePowerForecast] n={n}, forecast={forecast:.3f}, "
+              f"CI=({lower:.3f}, {upper:.3f})")
 
-    return fc_mean, ci_low, ci_high
+    return forecast, lower, upper
+

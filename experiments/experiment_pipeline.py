@@ -80,7 +80,6 @@ def main(dataset_name, data_id, seed):
                         X_val, y_val,
                         X_test, y_test,
                         pop_size=30, 
-                        starting_instances_proportion=0.2,
                         time_budget_factor=3)
     # results_dict.update(ebe_results)
     # with open(f'{exp_path}_results.json', 'w') as f:

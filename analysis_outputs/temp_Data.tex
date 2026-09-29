@@ -1,0 +1,62 @@
+\subsection{Overview of the NAS Framework}
+The proposed NAS toolkit is designed to identify top-performing neural network architectures with minimal computational resources. The workflow consists of candidate architecture generation, predictive evaluation using early-training signals, evolutionary search for optimization, and benchmarking against strong non-neural models.
+
+
+The first methodological component focuses on developing a forecasting mechanism capable of predicting the long-term performance of neural network architectures from minimal training information. This step addresses the need for rapid evaluation of candidate models while avoiding the cost of full convergence.
+
+\paragraph{Data Preparation.}
+All datasets are obtained from the OpenML repository, following a simple standardized preprocessing pipeline. Categorical features are encoded through label encoding, while continuous features are normalized using standard scaling. The data are subsequently split into training, validation, and test sets. Target variables are preprocessed by collapsing rare or unseen classes into a common \texttt{\_\_other\_\_} bucket before applying label encoding, ensuring consistent handling across splits.
+
+\paragraph{Search Space Configuration.}
+The design of candidate architectures is guided by a broad but controlled search space, which specifies the range of architectural and training hyperparameters. This configuration balances diversity---to ensure exploration of a wide set of structural patterns---with practicality, by constraining values to ranges that are computationally feasible. Table~\ref{tab:search_space} summarizes the standard configuration adopted throughout the experiments.
+
+\begin{table}[H]
+\centering
+\caption{Standard configuration of the search space for candidate architectures.}
+\label{tab:search_space}
+\begin{tabular}{p{5cm} p{10cm}}
+\hline
+\textbf{Hyperparameter} & \textbf{Configuration} \\
+\hline
+Number of hidden layers & 2 -- 25 \\
+Neurons per layer & 3 -- 100 \\
+Activation functions & ReLU, LeakyReLU, Sigmoid, Tanh, ELU, GELU \\
+Dropout rates & 0.0, 0.1, 0.2, 0.3, 0.4, 0.5 \\
+Learning rate & Uniform in log scale, $10^{-4}$ -- $10^{-1}$ \\
+Batch size & Powers of two: 32, 64, 128, 256, 512, 1024 \\
+Optimizers & Adam, SGD, RMSprop, AdamW \\
+Weight decay & 0, $10^{-6}$, $10^{-5}$, $10^{-4}$, $10^{-3}$, $10^{-2}$ \\
+Momentum & 0.8, 0.9, 0.95, 0.99 (only for SGD) \\
+Skip connections & True, False \\
+Initializers & Xavier (uniform/normal), Kaiming (uniform/normal) \\
+Learning rate schedulers & Step, Exponential, Cosine, None \\
+Architecture shapes & Constant, Pyramid, Inverted Pyramid, Hourglass, Triangular, Irregular \\
+\hline
+\end{tabular}
+\end{table}
+
+The ranges and options in the search space were selected to balance expressiveness and efficiency: they are broad enough to cover diverse architectural patterns (e.g., deep and shallow networks, varying connectivity, different regularization strategies), while remaining bounded to avoid excessively large or impractical configurations that would undermine the time--efficiency goals of the framework.
+
+
+\paragraph{Candidate Architecture Generation.}
+The initial pool of neural networks is derived from the predefined search space that specifies the range of architectural and training hyperparameters. For each candidate, a random sampling procedure instantiates an architecture configuration, which is then used to construct a dynamic multilayer perceptron model. This procedure ensures diversity within the initial population, allowing the forecasting mechanism to be tested across a broad spectrum of architectural profiles. The sampled architectures are subsequently paired with individual seeds to guarantee reproducibility.
+
+\paragraph{Effort Representation.}  
+\phantomsection\label{sec:effort_representation}
+To maintain comparability across architectures and hardware configurations, 
+\emph{effort} is defined as a deterministic measure of the total number of processed mini-batches, accumulating monotonically as training progresses. This approach captures the relative computational exposure of each candidate to data instances.
+
+Formally, for a candidate model $c$ trained over a sequence of mini-batches $\mathcal{B}(c)$, 
+the cumulative effort after processing $b$ batches is:
+
+\[
+E_b(c) = \sum_{i=1}^{b} 1 = b.
+\]
+
+Hence, the total effort at any point in training is equivalent to the number of processed mini-batches:
+\[
+\mathrm{Effort}(c) = |\mathcal{B}(c)|.
+\]
+
+\paragraph{Early Training Protocol.}  
+Each candidate architecture is trained under a restricted instance budget using the following scheme. At every anchor, the model is exposed only to a subset of the training data, with this budget expanding progressively across generations. An epoch in this context corresponds to a complete pass over the currently allocated instances rather than the full dataset. After each epoch, preliminary metrics are recorded, including validation accuracy, training accuracy, and training loss, logged against the cumulative effort.

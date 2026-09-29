@@ -56,6 +56,7 @@ class Population:
         self.spawn_new_candidates(self.search_space)  # use the same spawn logic
         self.initial_ledger = self.build_ledger().copy(deep=True)
         self.generation_logs = []
+        self.best_cand = None
 
         
     def spawn_candidates(self):
@@ -570,31 +571,30 @@ class Population:
         return self.candidates
 
     def run_ebe(self,
-            X_train, y_train, X_val, y_val,
-            baseline_metric,
-            mlp_time,
-            max_generations=200,
-            time_budget=60,
-            base_drop=0.1,
-            max_drop=0.5,
-            track_all_models=False):
+                X_train, y_train, X_val, y_val,
+                baseline_metric,
+                mlp_time,
+                max_generations=200,
+                time_budget=60,
+                base_drop=0.1,
+                max_drop=0.5,
+                track_all_models=False):
         """
         Full EBE loop:
         - Run generations with convex LB + hybrid pruning.
         - After each gen, check worth_training_neural_bayes.
-        - If decision flips True, stop EBE and launch extended training.
-        - Extended training continues candidate training until:
-            (a) baseline surpassed,
-            (b) time budget exhausted,
-            (c) convex LB says hopeless.
+        - If decision flips True, stop EBE and start refinement.
+        - Always start refinement with the best-EU candidate first.
         """
+
+        import time
+        start_time = time.time()
+        triggered = False
+        final_summary = {}
+        best_val_acc = -float("inf")
 
         self.current_snapshot = self.initial_ledger
         self.cumulative_ledger = self.initial_ledger if track_all_models else None
-
-        start_time = time.time()
-        triggered = False
-        best_cand = None
 
         # === Main EBE loop ===
         for gen in range(max_generations):
@@ -603,6 +603,7 @@ class Population:
                 print(f"[EBE] Time budget exceeded at gen {gen+1}, elapsed={elapsed:.2f}s")
                 break
 
+            remaining_time = time_budget - elapsed
             print(f"\n=== Generation {gen+1} ===")
 
             self.candidates = self.run_generation(
@@ -610,65 +611,151 @@ class Population:
                 baseline_metric=baseline_metric,
                 base_drop=base_drop,
                 max_drop=max_drop,
-                track_all_models=track_all_models, 
-                time_budget=time_budget - elapsed
+                track_all_models=track_all_models,
+                time_budget=remaining_time,
             )
             self.generations_completed += 1
 
-            # decision check after each generation
+            # --- Decision phase ---
             res = self.worth_training_neural_bayes(baseline_metric=baseline_metric)
-
             self.decision = res["ShouldYouEvenNN?"]
-            self.eu       = res["Exp. Utility"]
-            self.p        = res["p_above_goal"]
-            self.benefit  = res["benefit"]
-            self.cost     = res["cost"]
+            self.eu = res["Exp. Utility"]
+            self.p = res["p_above_goal"]
+            self.benefit = res["benefit"]
+            self.cost = res["cost"]
             self.evidence_weight = res.get("evidence_weight", 1.0)
-
             print(res)
-            # print('Benefit:', self.benefit)
 
             if self.decision:
                 print(f"[EBE] At gen {gen+1}, decision flipped: Worth training NN")
-                best_cand = max(self.candidates.values(),
-                                key=lambda c: c.metrics.get("forecasted_val_acc", 0.0))
                 triggered = True
                 break
 
-        # print("EBE process completed.")
+        self.ebe_loop_time = time.time() - start_time
 
-        # === Post-EBE extended training if triggered ===
-        self.ebe_loop_time = time.time() - start_time  # total EBE search time
+        # === CASE 1: decision triggered ===
+        if triggered:
+            # Prioritize the best-EU candidate
+            primary_cand = self.best_cand
+            if primary_cand is None:
+                print("[EBE] Warning: decision triggered but no best_cand set.")
+                return None, {"status": "triggered_no_candidate"}
 
-        if triggered and best_cand is not None:
-            self.extend_selected_candidate(
-                best_cand=best_cand,
+            # Remaining candidates (for fallback)
+            remaining_cands = [
+                c for c in self.candidates.values()
+                if c is not primary_cand
+            ]
+            remaining_cands.sort(
+                key=lambda c: c.metrics.get("p_above_goal", 0.0),
+                reverse=True
+            )
+
+            # --- Begin refinement phase ---
+            print(f"[EBE] Starting refinement phase — best-EU candidate first (id={primary_cand.id})")
+            ordered_cands = [primary_cand] + remaining_cands
+
+            for rank, cand in enumerate(ordered_cands, 1):
+                elapsed = time.time() - start_time
+                remaining_time = time_budget - elapsed
+                if remaining_time <= 0 and rank != 1:
+                    print(f"[EBE] Stopping extensions — only {remaining_time:.1f}s left.")
+                    break
+
+                print(f"[EBE] -> Extending candidate #{rank} (id={cand.id}), "
+                    f"time left: {remaining_time:.1f}s | "
+                    f"EU={getattr(self, 'eu', 0.0):.4f}")
+
+                extended_summary = self.extend_selected_candidate(
+                    best_cand=cand,
+                    X_train=X_train, y_train=y_train,
+                    X_val=X_val, y_val=y_val,
+                    baseline_metric=baseline_metric,
+                    time_budget=remaining_time,
+                    start_time=start_time,
+                    mlp_time=mlp_time
+                )
+
+                final_val_acc = extended_summary.get("final_val_acc", 0.0)
+                if final_val_acc > best_val_acc:
+                    best_val_acc = final_val_acc
+                    final_summary = {
+                        "phase": "triggered",
+                        **extended_summary,
+                        "dataset_baseline": float(baseline_metric),
+                        "ebe_loop_time": float(self.ebe_loop_time),
+                    }
+                    self.best_cand = cand
+
+                if extended_summary.get("surpassed_baseline", False):
+                    print(f"[EBE] Candidate #{rank} surpassed baseline.")
+                    break
+                else:
+                    print(f"[EBE] Candidate #{rank} failed baseline, trying next one...")
+
+            else:
+                print("[EBE] No candidate managed to surpass baseline after all extensions.")
+
+        # === CASE 2: never triggered ===
+        else:
+            print("[EBE] No evidence found that NN is worth training early — "
+                "performing one final refinement of the best-EU candidate.")
+
+            cand = self.best_cand
+            if cand is None:
+                print("[EBE] No candidates available for extension.")
+                self.final_summary = {"status": "no_candidates"}
+                return None, self.final_summary
+
+            elapsed = time.time() - start_time
+            remaining_time = max(30, time_budget - elapsed)
+            if remaining_time <= 0:
+                print(f"[EBE] Insufficient time for final refinement ({remaining_time:.1f}s).")
+                self.final_summary = {
+                    "phase": "untriggered_timeout",
+                    "final_val_acc": cand.metrics.get("forecasted_val_acc", 0.0),
+                    "surpassed_baseline": False,
+                    "ebe_loop_time": float(self.ebe_loop_time),
+                }
+                return cand, self.final_summary
+
+            extended_summary = self.extend_selected_candidate(
+                best_cand=cand,
                 X_train=X_train, y_train=y_train,
                 X_val=X_val, y_val=y_val,
                 baseline_metric=baseline_metric,
-                time_budget=time_budget,
+                time_budget=remaining_time,
                 start_time=start_time,
                 mlp_time=mlp_time
             )
-        elif not triggered:
-            print("[EBE] No evidence found that NN is worth training. Skipping extension.")
 
-        return self.current_snapshot
+            best_val_acc = extended_summary.get("final_val_acc", 0.0)
+            final_summary = {
+                "phase": "untriggered",
+                **extended_summary,
+                "dataset_baseline": float(baseline_metric),
+                "ebe_loop_time": float(self.ebe_loop_time),
+            }
+
+            if extended_summary.get("surpassed_baseline", False):
+                print("[EBE] Fallback candidate managed to surpass baseline.")
+            else:
+                print("[EBE] Fallback candidate did not surpass baseline.")
+
+        # === Final bookkeeping ===
+        self.final_summary = final_summary
+
+        if self.best_cand:
+            print(f"[EBE] True best candidate ID={self.best_cand.id} | "
+                f"Val acc={best_val_acc:.4f} | EU={self.eu:.4f}")
+        else:
+            print("[EBE] No valid candidate found as best_cand.")
+
+        return self.best_cand, self.final_summary
 
 
-    # def fidelity_training(self, X_train, y_train, X_val, y_val, 
-    #                       X_test=None, y_test=None):
-    #     # === Fidelity check ===
-    #     print("Training top by ES (fidelity check)")
-    #     self.fidelity_ledger = self.fidelity_from_ledger(
-    #         ledger_df=self.current_snapshot,
-    #         X_train=X_train, y_train=y_train,
-    #         X_val=X_val, y_val=y_val,
-    #         top_fraction=1, # all of them,
-    #     )
-    #     return self.fidelity_ledger
 
-    
+
 
     def build_ledger(self, export_as='pandas'):
         def _to_scalar(val):
@@ -694,51 +781,86 @@ class Population:
     def worth_training_neural_bayes(
         self,
         baseline_metric,
-        cost_scale: float = 0.05,
+        cost_weight: float = 0.01,
         tol: float = 0.0,
         evidence_smooth: float = 8.0,
         evidence_min: float = 0.2,
-        cost_smooth: float = 150.0,
-    ):
+        ):
         """
-        Expected utility with light cost compression for long forecast horizons.
-        Prevents large future horizons (e.g. 400 batches) from overpowering benefit.
+        Expected utility computed for all candidates; returns the top one
+        that surpasses the threshold if any.
         """
+
         import numpy as np
 
-        best_cand = max(
-            self.candidates.values(),
-            key=lambda c: c.metrics.get("p_above_goal", 0.0)
-        )
+        best_cand, best_EU = None, -float("inf")
 
-        p = best_cand.metrics.get("p_above_goal", 0.0)
-        fcst = best_cand.metrics.get("forecasted_val_acc", 0.0)
-        benefit = fcst - baseline_metric
+        for cand in self.candidates.values():
 
-        e_future = best_cand.metrics.get("forecast_horizon_time") or 0.0
-        e_spent = getattr(best_cand, "batches_trained", 0) or 0.0
-        projected_remaining_effort = max(0.0, e_future - e_spent)
+            p = cand.metrics.get("p_above_goal", 0.0)
+            fcst = cand.metrics.get("forecasted_val_acc", 0.0)
+            benefit = fcst - baseline_metric
 
-        # --- Cost compression ---
-        # smooths growth so 400 batches doesn't kill EU immediately
-        norm_cost = 1 - np.exp(-projected_remaining_effort / cost_smooth)
+            e_future = cand.metrics.get("forecast_horizon_time") or 0.0
+            e_spent = getattr(cand, "batches_trained", 0) or 0.0
+            e_rem = max(0.0, e_future - e_spent)
 
-        # --- Evidence ramp ---
-        w = 1 - np.exp(-e_spent / evidence_smooth)
-        w = evidence_min + (1 - evidence_min) * w
+            # --- Normalized cost ---
+            norm_cost = (e_rem / e_future) if e_future > 0 else 0.0
 
-        # --- Expected Utility ---
-        EU = w * (p * benefit) - cost_scale * norm_cost
+            # --- Evidence ramp ---
+            w = 1 - np.exp(-e_spent / evidence_smooth)
+            w = evidence_min + (1 - evidence_min) * w
+
+            # --- Expected Utility ---
+            EU = w * (p * benefit) - cost_weight * norm_cost
+
+            # --- Track best surpassing candidate ---
+            if EU > tol and EU > best_EU:
+                best_EU = EU
+                best_cand = cand
+
+        # --- If none surpassed, take the global best anyway ---
+        if best_cand is None:
+            best_cand = max(
+                self.candidates.values(),
+                key=lambda c: c.metrics.get("p_above_goal", 0.0),
+            )
+
+            p = best_cand.metrics.get("p_above_goal", 0.0)
+            fcst = best_cand.metrics.get("forecasted_val_acc", 0.0)
+            benefit = fcst - baseline_metric
+            e_future = best_cand.metrics.get("forecast_horizon_time") or 0.0
+            e_spent = getattr(best_cand, "batches_trained", 0) or 0.0
+            e_rem = max(0.0, e_future - e_spent)
+            norm_cost = (e_rem / e_future) if e_future > 0 else 0.0
+            w = 1 - np.exp(-e_spent / evidence_smooth)
+            w = evidence_min + (1 - evidence_min) * w
+            EU = w * (p * benefit) - cost_weight * norm_cost
+        else:
+            # values from the chosen surpassing candidate
+            p = best_cand.metrics.get("p_above_goal", 0.0)
+            fcst = best_cand.metrics.get("forecasted_val_acc", 0.0)
+            benefit = fcst - baseline_metric
+            e_future = best_cand.metrics.get("forecast_horizon_time") or 0.0
+            e_spent = getattr(best_cand, "batches_trained", 0) or 0.0
+            e_rem = max(0.0, e_future - e_spent)
+            norm_cost = (e_rem / e_future) if e_future > 0 else 0.0
+            w = 1 - np.exp(-e_spent / evidence_smooth)
+            w = evidence_min + (1 - evidence_min) * w
+            EU = best_EU
+            self.best_cand = best_cand
 
         return {
             "ShouldYouEvenNN?": EU > tol,
             "Exp. Utility": EU,
             "p_above_goal": p,
             "benefit": benefit,
-            "cost": projected_remaining_effort,
+            "cost": e_rem,
             "norm_cost": norm_cost,
             "evidence_weight": w,
         }
+
 
     
     def final_decision(self):
@@ -879,7 +1001,7 @@ class Population:
                 train_loader=train_loader,
                 val_loader=val_loader,
                 task_type=self.task_type,
-                patience=30,
+                patience=50,
                 tol=1e-4,
                 max_time=remaining_time,
                 return_lc=True
@@ -930,7 +1052,7 @@ class Population:
 
         # ledger update
         self.current_snapshot = self.build_ledger().copy(deep=True)
-        return self.current_snapshot
+        return self.extension_summary
 
 
 def compare_forecast_vs_fidelity(fidelity_df):

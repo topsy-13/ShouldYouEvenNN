@@ -36,8 +36,7 @@ def run_forecast_only_benchmark(
 
     # 2) Search space + tiny “population” only for infra (no EBE loop)
     space = SearchSpace(input_size=in_size, output_size=out_size)
-    starting_instances_proportion = 0.1
-    starting_instances = int(starting_instances_proportion * len(X_train))
+    starting_instances= 3072
     pop = Population(search_space=space, size=n_models, starting_instances=starting_instances, seed=seed, task_type=task_type)
     
     # 3) One pass to log early curves (no pruning, no scoring)
@@ -163,11 +162,12 @@ if __name__ == "__main__":
     crashed = {}
 
     omit_ids = [1169, 1590, 41156, 41147]
+    omit_ids=[]
     for dataset_name, data_id in dataset_ids.items():
         if data_id not in omit_ids:
             print('Testing dataset:', dataset_name)
             save_dir = "./experiments/forecast_only"
-            s, d, L, F = run_forecast_only_benchmark(dataset_id=data_id, n_models=25, seed=13)
+            s, d, L, F = run_forecast_only_benchmark(dataset_id=data_id, n_models=10, seed=13)
             # print(s)
                 # === 10) PLOTTING SECTION ===
             import matplotlib.pyplot as plt

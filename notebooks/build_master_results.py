@@ -25,6 +25,7 @@ def build_master_table(
     keep_cols = [c for c in keep_cols if c in df.columns]
 
     master = df[keep_cols].copy()
+    master["ebe_decision"] = master["ebe_surpassed_val_baseline"]
 
     # --- Round numeric columns for readability ---
     numeric_cols = master.select_dtypes(include="number").columns
