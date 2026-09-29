@@ -1,49 +1,55 @@
 # ShouldYouEvenNN
-_Stop wasting epochs. Forecast first._
-ShouldYouEvenNN is a lightweight, forecasting-driven neural architecture evaluation framework designed to answer one question:
-**Is it even worth training a neural network for this task — or will a simpler model do better?**
 
-Instead of fully training deep models and hoping for the best, this project uses early learning signals and curve extrapolation to predict whether a neural architecture is likely to beat classical models like XGBoost or SVM. If not, it gets discarded — fast.
+**When should training a neural candidate continue?**
 
-## Core Idea
-_Train just enough to know whether to keep going._
-Use minimal batches to collect early validation metrics
+This repository is the foundation for a controlled study of early stopping relative
+to a classical baseline. The intended outcome is a decision rule that saves compute
+while rarely rejecting candidates that would achieve a meaningful improvement.
 
-Fit a learning curve forecaster (e.g., polynomial regression)
+The active package currently contains no training, forecasting, or decision
+implementation. The thesis prototype and its results are historical, exploratory
+material; their limitations are documented in [the archive](archive/README.md).
 
-Compare predicted final performance against non-neural baselines
+## Quick start
 
-Discard unpromising models early — before wasting more compute
+Use Python 3.11 or newer and a fresh virtual environment. From the repository root:
 
-This is integrated into a simplified NAS loop (EBE-NAS), built for low-resource environments where smart filtering matters more than exhaustive search.
+```sh
+python -m venv .venv
+```
 
-## Features
-🔁 Epoch-by-epoch evaluation under strict batch/instance budgets
+Activate it with `.venv\Scripts\Activate.ps1` in PowerShell, or
+`source .venv/bin/activate` on Linux/macOS. Then:
 
-🧮 Forecasting module for extrapolating neural performance
+```sh
+python -m pip install -e ".[dev]"
+python -m pytest
+python -m ruff check .
+python -m ruff format --check .
+```
 
-⚖️ Baseline-aware discarding, with classical ML models as benchmarks
+On Windows, `py -3.11` can replace `python` when creating the environment. The
+checks exercise packaging only; they do not download data or train models.
 
-🧬 Simple NAS engine for evolving MLP-like architectures
+## Repository map
 
-📉 Result tracking and diagnostic tools for forecast vs. real score
+| Directory | Purpose |
+| --- | --- |
+| `src/shouldyouevennn/` | Installable, reusable research code |
+| `tests/` | Automated checks for active code |
+| `configs/` | Versioned experiment configurations |
+| `data/raw/` | Local source datasets, treated as immutable |
+| `data/processed/` | Regenerable local datasets |
+| `notebooks/` | Exploration and interpretation |
+| `artifacts/runs/` | Generated run records, predictions, and checkpoints |
+| `reports/figures/`, `reports/tables/` | Curated figures and tables for reporting |
+| `docs/` | Research protocol and development guidance |
+| `archive/thesis-prototype/` | Preserved original project layout |
 
-## Structure Overview
+Start with the [research protocol](docs/research-protocol.md) and
+[development guidance](docs/development.md). Experiment design choices remain open
+until specified in a versioned protocol; old constants are not active defaults.
 
-ShouldYouEvenNN/
-├── src/                   # All core logic: training, forecasting, discarding, etc.
-├── notebooks/             # Visualizations and analysis
-├── experiments/           # Datasets, config files, result logs
-├── docs/                  # Diagrams, architecture, write-ups
-├── main.py                # Entry point to run the EBE-NAS loop
-├── config.yaml            # Customizable settings
-└── README.md              # This file
-
-## Use Cases
-Decide early whether deep learning is necessary
-
-Reduce compute waste in AutoML/NAS workflows
-
-Run architecture search on limited hardware
-
-Teach model selection and resource-awareness
+Local datasets and run outputs are ignored by Git. Curated CSV tables may be
+tracked. See [archive preservation details](archive/README.md) before assuming a
+clone contains every historical artifact.
