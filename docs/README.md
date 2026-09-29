@@ -1,5 +1,7 @@
 # Research documentation
 
+- [Research log](research-log.md): dated questions, observations, decisions, and
+  next experiments, maintained under the [repository instructions](../AGENTS.md).
 - [Research protocol](research-protocol.md): the question, intended comparisons,
   evaluation safeguards, and choices still to be specified.
 - [Development](development.md): installation, checks, and contribution conventions.

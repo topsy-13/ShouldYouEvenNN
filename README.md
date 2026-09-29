@@ -47,7 +47,8 @@ checks exercise packaging only; they do not download data or train models.
 | `archive/thesis-prototype/` | Preserved original project layout |
 
 Start with the [research protocol](docs/research-protocol.md) and
-[development guidance](docs/development.md). Experiment design choices remain open
+[research log](docs/research-log.md); use the
+[development guidance](docs/development.md) for setup. Experiment design choices remain open
 until specified in a versioned protocol; old constants are not active defaults.
 
 Local datasets and run outputs are ignored by Git. Curated CSV tables may be
